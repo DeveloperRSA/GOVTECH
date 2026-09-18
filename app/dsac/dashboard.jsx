@@ -1,3 +1,4 @@
+
 import React, {
   useCallback,
   useState,
@@ -244,7 +245,7 @@ export default function DSACDashboard() {
               <View style={styles.coatContainer}>
 
                 <Image
-                  source={require('../../assets/images/sa.jpg')}
+                  source={require('../../assets/images/sa-government.jpg')}
                   style={styles.coatOfArms}
                   resizeMode="contain"
                 />
@@ -335,11 +336,17 @@ export default function DSACDashboard() {
 
             <View style={styles.systemRight}>
 
+              {/* =================================================
+                  SOUTH AFRICAN FLAG IMAGE
+              ================================================= */}
+
               <View style={styles.flagMini}>
 
-                <View style={styles.miniRed} />
-                <View style={styles.miniGreen} />
-                <View style={styles.miniBlue} />
+                <Image
+                  source={require('../../assets/images/flag.jpg')}
+                  style={styles.flagMiniImage}
+                  resizeMode="cover"
+                />
 
               </View>
 
@@ -962,7 +969,7 @@ const styles = StyleSheet.create({
   },
 
   /* ---------------------------------------------------------
-     SOUTH AFRICAN FLAG
+     SOUTH AFRICAN FLAG STRIP
   --------------------------------------------------------- */
 
   flagStrip: {
@@ -976,7 +983,7 @@ const styles = StyleSheet.create({
   },
 
   flagRed: {
-    backgroundColor: '#F05D2A',
+    backgroundColor: '#DE3831',
   },
 
   flagWhite: {
@@ -985,15 +992,15 @@ const styles = StyleSheet.create({
 
   flagGreen: {
     flex: 2,
-    backgroundColor: '#009366',
+    backgroundColor: '#007A4D',
   },
 
   flagGold: {
-    backgroundColor: '#F7941D',
+    backgroundColor: '#FFB81C',
   },
 
   flagBlue: {
-    backgroundColor: '#0053A1',
+    backgroundColor: '#002395',
   },
 
   flagBlack: {
@@ -1163,28 +1170,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  /* ---------------------------------------------------------
+     SOUTH AFRICAN FLAG IMAGE
+  --------------------------------------------------------- */
+
   flagMini: {
-    width: 42,
-    height: 25,
+    width: 48,
+    height: 29,
     marginRight: 15,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#DDDDDD',
+    borderColor: '#CCCCCC',
+    backgroundColor: '#FFFFFF',
   },
 
-  miniRed: {
-    flex: 1,
-    backgroundColor: '#F05D2A',
-  },
-
-  miniGreen: {
-    flex: 1,
-    backgroundColor: '#009366',
-  },
-
-  miniBlue: {
-    flex: 1,
-    backgroundColor: '#0053A1',
+  flagMiniImage: {
+    width: '100%',
+    height: '100%',
   },
 
   statusBox: {
@@ -1770,3 +1772,4 @@ const styles = StyleSheet.create({
   },
 
 });
+
