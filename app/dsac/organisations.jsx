@@ -1,7 +1,5 @@
-import React, {
-  useCallback,
-  useState,
-} from 'react';
+
+import React, { useCallback, useState } from 'react';
 
 import {
   ActivityIndicator,
@@ -16,26 +14,11 @@ import {
   View,
 } from 'react-native';
 
-import {
-  router,
-  useFocusEffect,
-} from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { useAuth } from '../../src/contexts/AuthContext';
 import { supabase } from '../../src/services/supabase';
 import { ROLES } from '../../src/constants/roles';
-
-type Organisation = {
-  id: string;
-  name: string;
-  organisation_type: string;
-  registration_number: string;
-  email: string;
-  phone: string | null;
-  province: string | null;
-  status: string;
-  created_at: string;
-};
 
 export default function OrganisationsScreen() {
   const {
@@ -48,104 +31,69 @@ export default function OrganisationsScreen() {
   const [showForm, setShowForm] = useState(false);
 
   // Organisation details
-  const [organisationName, setOrganisationName] =
-    useState('');
-
-  const [organisationType, setOrganisationType] =
-    useState('NPO');
-
-  const [registrationNumber, setRegistrationNumber] =
-    useState('');
-
-  const [email, setEmail] =
-    useState('');
+  const [organisationName, setOrganisationName] = useState('');
+  const [organisationType, setOrganisationType] = useState('NPO');
+  const [registrationNumber, setRegistrationNumber] = useState('');
+  const [email, setEmail] = useState('');
 
   // First Organisation Admin details
-  const [adminFullName, setAdminFullName] =
-    useState('');
+  const [adminFullName, setAdminFullName] = useState('');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPasswordConfirm, setAdminPasswordConfirm] = useState('');
+  const [adminPasswordVisible, setAdminPasswordVisible] = useState(false);
 
-  const [adminEmail, setAdminEmail] =
-    useState('');
-
-  const [adminPassword, setAdminPassword] =
-    useState('');
-
-  const [adminPasswordConfirm, setAdminPasswordConfirm] =
-    useState('');
-
-  const [adminPasswordVisible, setAdminPasswordVisible] =
-    useState(false);
-
-  const [organisations, setOrganisations] =
-    useState<Organisation[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [saving, setSaving] =
-    useState(false);
+  const [organisations, setOrganisations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   /*
    * Load organisations from Supabase
    */
-  const loadOrganisations =
-    useCallback(async () => {
-      try {
-        setLoading(true);
+  const loadOrganisations = useCallback(async () => {
+    try {
+      setLoading(true);
 
-        console.log(
-          'LOAD ORGANISATIONS: starting'
-        );
+      console.log('LOAD ORGANISATIONS: starting');
 
-        const {
-          data,
-          error,
-        } = await supabase
-          .from('organisations')
-          .select(`
-            id,
-            name,
-            organisation_type,
-            registration_number,
-            email,
-            phone,
-            province,
-            status,
-            created_at
-          `)
-          .order('created_at', {
-            ascending: false,
-          });
+      const { data, error } = await supabase
+        .from('organisations')
+        .select(`
+          id,
+          name,
+          organisation_type,
+          registration_number,
+          email,
+          phone,
+          province,
+          status,
+          created_at
+        `)
+        .order('created_at', {
+          ascending: false,
+        });
 
-        console.log(
-          'LOAD ORGANISATIONS: response',
-          {
-            data,
-            error,
-          }
-        );
+      console.log('LOAD ORGANISATIONS: response', {
+        data,
+        error,
+      });
 
-        if (error) {
-          throw error;
-        }
-
-        setOrganisations(
-          data || []
-        );
-      } catch (error) {
-        console.error(
-          'Organisation loading error:',
-          error
-        );
-
-        Alert.alert(
-          'Unable to Load',
-          'Organisations could not be loaded from Supabase.'
-        );
-      } finally {
-        setLoading(false);
+      if (error) {
+        throw error;
       }
-    }, []);
+
+      setOrganisations(data || []);
+    } catch (error) {
+      console.error('Organisation loading error:', error);
+
+      Alert.alert(
+        'Unable to Load',
+        'Organisations could not be loaded from Supabase.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -185,520 +133,464 @@ export default function OrganisationsScreen() {
   /*
    * Create organisation + first Organisation Admin
    */
-  const createOrganisation =
-    async () => {
+  const createOrganisation = async () => {
+    console.log(
+      'CREATE ORGANISATION: BUTTON FUNCTION STARTED'
+    );
+
+    /*
+     * Make sure the user is authenticated
+     */
+    if (!user) {
+      console.log('CREATE ORGANISATION: NO USER');
+
+      Alert.alert(
+        'Authentication Required',
+        'You must be signed in to create an organisation.'
+      );
+
+      return;
+    }
+
+    console.log(
+      'CREATE ORGANISATION: USER FOUND',
+      user.id
+    );
+
+    /*
+     * Make sure user is DSAC Admin
+     */
+    if (role !== ROLES.DSAC_ADMIN) {
       console.log(
-        'CREATE ORGANISATION: BUTTON FUNCTION STARTED'
+        'CREATE ORGANISATION: ACCESS DENIED',
+        role
+      );
+
+      Alert.alert(
+        'Access Denied',
+        'Only a DSAC administrator can create organisations.'
+      );
+
+      return;
+    }
+
+    console.log(
+      'CREATE ORGANISATION: DSAC ADMIN VERIFIED'
+    );
+
+    /*
+     * Organisation validation
+     */
+    if (
+      !organisationName.trim() ||
+      !registrationNumber.trim() ||
+      !email.trim()
+    ) {
+      console.log(
+        'CREATE ORGANISATION: ORGANISATION VALIDATION FAILED'
+      );
+
+      Alert.alert(
+        'Missing Organisation Information',
+        'Please complete the organisation name, registration number and organisation email.'
+      );
+
+      return;
+    }
+
+    /*
+     * Email validation
+     */
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailPattern.test(email.trim())) {
+      console.log(
+        'CREATE ORGANISATION: ORGANISATION EMAIL INVALID',
+        email
+      );
+
+      Alert.alert(
+        'Invalid Organisation Email',
+        'Please enter a valid organisation email address.'
+      );
+
+      return;
+    }
+
+    /*
+     * Admin validation
+     */
+    if (
+      !adminFullName.trim() ||
+      !adminEmail.trim() ||
+      !adminPassword ||
+      !adminPasswordConfirm
+    ) {
+      console.log(
+        'CREATE ORGANISATION: ADMIN VALIDATION FAILED'
+      );
+
+      Alert.alert(
+        'Missing Administrator Information',
+        'Please complete the Organisation Administrator name, email, password and password confirmation.'
+      );
+
+      return;
+    }
+
+    /*
+     * Admin email validation
+     */
+    if (!emailPattern.test(adminEmail.trim())) {
+      console.log(
+        'CREATE ORGANISATION: ADMIN EMAIL INVALID',
+        adminEmail
+      );
+
+      Alert.alert(
+        'Invalid Administrator Email',
+        'Please enter a valid Organisation Administrator email address.'
+      );
+
+      return;
+    }
+
+    /*
+     * Password validation
+     */
+    if (adminPassword.length < 8) {
+      console.log(
+        'CREATE ORGANISATION: PASSWORD TOO SHORT'
+      );
+
+      Alert.alert(
+        'Password Too Short',
+        'The temporary password must contain at least 8 characters.'
+      );
+
+      return;
+    }
+
+    /*
+     * Confirm password
+     */
+    if (adminPassword !== adminPasswordConfirm) {
+      console.log(
+        'CREATE ORGANISATION: PASSWORDS DO NOT MATCH'
+      );
+
+      Alert.alert(
+        'Passwords Do Not Match',
+        'The temporary password and confirmation password must match.'
+      );
+
+      return;
+    }
+
+    console.log(
+      'CREATE ORGANISATION: ALL VALIDATION PASSED'
+    );
+
+    try {
+      setSaving(true);
+
+      console.log(
+        'CREATE ORGANISATION: SAVING STATE ENABLED'
       );
 
       /*
-       * Make sure the user is authenticated
+       * --------------------------------
+       * CHECK DUPLICATE REGISTRATION
+       * --------------------------------
        */
-      if (!user) {
-        console.log(
-          'CREATE ORGANISATION: NO USER'
-        );
-
-        Alert.alert(
-          'Authentication Required',
-          'You must be signed in to create an organisation.'
-        );
-
-        return;
-      }
 
       console.log(
-        'CREATE ORGANISATION: USER FOUND',
-        user.id
+        'CREATE ORGANISATION: CHECKING DUPLICATE REGISTRATION'
       );
 
-      /*
-       * Make sure user is DSAC Admin
-       */
-      if (
-        role !== ROLES.DSAC_ADMIN
-      ) {
-        console.log(
-          'CREATE ORGANISATION: ACCESS DENIED',
-          role
-        );
-
-        Alert.alert(
-          'Access Denied',
-          'Only a DSAC administrator can create organisations.'
-        );
-
-        return;
-      }
-
-      console.log(
-        'CREATE ORGANISATION: DSAC ADMIN VERIFIED'
-      );
-
-      /*
-       * Organisation validation
-       */
-      if (
-        !organisationName.trim() ||
-        !registrationNumber.trim() ||
-        !email.trim()
-      ) {
-        console.log(
-          'CREATE ORGANISATION: ORGANISATION VALIDATION FAILED'
-        );
-
-        Alert.alert(
-          'Missing Organisation Information',
-          'Please complete the organisation name, registration number and organisation email.'
-        );
-
-        return;
-      }
-
-      /*
-       * Correct email validation
-       */
-      const emailPattern =
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-      if (
-        !emailPattern.test(
-          email.trim()
+      const {
+        data: existingOrganisation,
+        error: duplicateError,
+      } = await supabase
+        .from('organisations')
+        .select('id')
+        .eq(
+          'registration_number',
+          registrationNumber.trim()
         )
-      ) {
-        console.log(
-          'CREATE ORGANISATION: ORGANISATION EMAIL INVALID',
-          email
-        );
-
-        Alert.alert(
-          'Invalid Organisation Email',
-          'Please enter a valid organisation email address.'
-        );
-
-        return;
-      }
-
-      /*
-       * Admin validation
-       */
-      if (
-        !adminFullName.trim() ||
-        !adminEmail.trim() ||
-        !adminPassword ||
-        !adminPasswordConfirm
-      ) {
-        console.log(
-          'CREATE ORGANISATION: ADMIN VALIDATION FAILED'
-        );
-
-        Alert.alert(
-          'Missing Administrator Information',
-          'Please complete the Organisation Administrator name, email, password and password confirmation.'
-        );
-
-        return;
-      }
-
-      /*
-       * Admin email validation
-       */
-      if (
-        !emailPattern.test(
-          adminEmail.trim()
-        )
-      ) {
-        console.log(
-          'CREATE ORGANISATION: ADMIN EMAIL INVALID',
-          adminEmail
-        );
-
-        Alert.alert(
-          'Invalid Administrator Email',
-          'Please enter a valid Organisation Administrator email address.'
-        );
-
-        return;
-      }
-
-      /*
-       * Password validation
-       */
-      if (
-        adminPassword.length < 8
-      ) {
-        console.log(
-          'CREATE ORGANISATION: PASSWORD TOO SHORT'
-        );
-
-        Alert.alert(
-          'Password Too Short',
-          'The temporary password must contain at least 8 characters.'
-        );
-
-        return;
-      }
-
-      /*
-       * Confirm password
-       */
-      if (
-        adminPassword !==
-        adminPasswordConfirm
-      ) {
-        console.log(
-          'CREATE ORGANISATION: PASSWORDS DO NOT MATCH'
-        );
-
-        Alert.alert(
-          'Passwords Do Not Match',
-          'The temporary password and confirmation password must match.'
-        );
-
-        return;
-      }
+        .maybeSingle();
 
       console.log(
-        'CREATE ORGANISATION: ALL VALIDATION PASSED'
+        'CREATE ORGANISATION: DUPLICATE CHECK RESPONSE',
+        {
+          existingOrganisation,
+          duplicateError,
+        }
       );
 
-      try {
-        setSaving(true);
+      if (duplicateError) {
+        throw duplicateError;
+      }
 
+      if (existingOrganisation) {
         console.log(
-          'CREATE ORGANISATION: SAVING STATE ENABLED'
+          'CREATE ORGANISATION: DUPLICATE FOUND'
         );
 
-        /*
-         * --------------------------------
-         * CHECK DUPLICATE REGISTRATION
-         * --------------------------------
-         */
-
-        console.log(
-          'CREATE ORGANISATION: CHECKING DUPLICATE REGISTRATION'
+        Alert.alert(
+          'Organisation Already Exists',
+          'An organisation with this registration number already exists.'
         );
 
-        const {
-          data: existingOrganisation,
-          error: duplicateError,
-        } = await supabase
-          .from('organisations')
-          .select('id')
-          .eq(
-            'registration_number',
-            registrationNumber.trim()
-          )
-          .maybeSingle();
+        return;
+      }
 
-        console.log(
-          'CREATE ORGANISATION: DUPLICATE CHECK RESPONSE',
-          {
-            existingOrganisation,
-            duplicateError,
-          }
-        );
+      /*
+       * --------------------------------
+       * CREATE ORGANISATION
+       * --------------------------------
+       */
 
-        if (duplicateError) {
-          throw duplicateError;
-        }
+      console.log(
+        'CREATE ORGANISATION: ABOUT TO INSERT ORGANISATION'
+      );
 
-        if (existingOrganisation) {
-          console.log(
-            'CREATE ORGANISATION: DUPLICATE FOUND'
-          );
+      const { data, error } = await supabase
+        .from('organisations')
+        .insert({
+          name: organisationName.trim(),
+          organisation_type: organisationType,
+          registration_number: registrationNumber.trim(),
+          email: email.trim().toLowerCase(),
+          status: 'ACTIVE',
+          created_by: profile?.id || user.id,
+        })
+        .select()
+        .single();
 
-          Alert.alert(
-            'Organisation Already Exists',
-            'An organisation with this registration number already exists.'
-          );
+      console.log(
+        'CREATE ORGANISATION: ORGANISATION INSERT FINISHED'
+      );
 
-          return;
-        }
+      console.log(
+        'CREATE ORGANISATION: INSERT DATA',
+        data
+      );
 
-        /*
-         * --------------------------------
-         * CREATE ORGANISATION
-         * --------------------------------
-         */
+      console.log(
+        'CREATE ORGANISATION: INSERT ERROR',
+        error
+      );
 
-        console.log(
-          'CREATE ORGANISATION: ABOUT TO INSERT ORGANISATION'
-        );
-
-        const {
-          data,
-          error,
-        } = await supabase
-          .from('organisations')
-          .insert({
-            name:
-              organisationName.trim(),
-
-            organisation_type:
-              organisationType,
-
-            registration_number:
-              registrationNumber.trim(),
-
-            email:
-              email.trim().toLowerCase(),
-
-            status:
-              'ACTIVE',
-
-            created_by:
-              profile?.id || user.id,
-          })
-          .select()
-          .single();
-
-        console.log(
-          'CREATE ORGANISATION: ORGANISATION INSERT FINISHED'
-        );
-
-        console.log(
-          'CREATE ORGANISATION: INSERT DATA',
-          data
-        );
-
-        console.log(
-          'CREATE ORGANISATION: INSERT ERROR',
+      if (error) {
+        console.error(
+          'Organisation insert error:',
           error
         );
 
-        if (error) {
-          console.error(
-            'Organisation insert error:',
-            error
-          );
+        throw error;
+      }
 
-          throw error;
-        }
-
-        if (!data?.id) {
-          throw new Error(
-            'The organisation was created but its ID could not be retrieved.'
-          );
-        }
-
-        console.log(
-          'CREATE ORGANISATION: ORGANISATION CREATED SUCCESSFULLY',
-          data.id
+      if (!data?.id) {
+        throw new Error(
+          'The organisation was created but its ID could not be retrieved.'
         );
+      }
 
-        /*
-         * --------------------------------
-         * CREATE ORGANISATION ADMIN
-         * --------------------------------
-         *
-         * Password is sent only to the
-         * secure server-side Edge Function.
-         */
+      console.log(
+        'CREATE ORGANISATION: ORGANISATION CREATED SUCCESSFULLY',
+        data.id
+      );
 
-        console.log(
-          'CREATE ORGANISATION: CALLING EDGE FUNCTION'
-        );
+      /*
+       * --------------------------------
+       * CREATE ORGANISATION ADMIN
+       * --------------------------------
+       *
+       * Password is sent only to the
+       * secure server-side Edge Function.
+       */
 
-        console.log(
-          'CREATE ORGANISATION: FUNCTION PAYLOAD',
-          {
+      console.log(
+        'CREATE ORGANISATION: CALLING EDGE FUNCTION'
+      );
+
+      console.log(
+        'CREATE ORGANISATION: FUNCTION PAYLOAD',
+        {
+          organisationId: data.id,
+          fullName: adminFullName.trim(),
+          email: adminEmail.trim().toLowerCase(),
+        }
+      );
+
+      const {
+        data: functionData,
+        error: functionError,
+      } = await supabase.functions.invoke(
+        'create-organisation-admin',
+        {
+          body: {
             organisationId: data.id,
-            fullName:
-              adminFullName.trim(),
-            email:
-              adminEmail.trim().toLowerCase(),
-          }
-        );
+            fullName: adminFullName.trim(),
+            email: adminEmail.trim().toLowerCase(),
+            password: adminPassword,
+          },
+        }
+      );
 
-        const {
-          data: functionData,
-          error: functionError,
-        } =
-          await supabase.functions.invoke(
-            'create-organisation-admin',
-            {
-              body: {
-                organisationId:
-                  data.id,
+      console.log(
+        'CREATE ORGANISATION: EDGE FUNCTION FINISHED'
+      );
 
-                fullName:
-                  adminFullName.trim(),
+      console.log(
+        'CREATE ORGANISATION: EDGE FUNCTION DATA',
+        functionData
+      );
 
-                email:
-                  adminEmail.trim().toLowerCase(),
+      console.log(
+        'CREATE ORGANISATION: EDGE FUNCTION ERROR',
+        functionError
+      );
 
-                password:
-                  adminPassword,
-              },
-            }
-          );
+      /*
+       * --------------------------------
+       * EDGE FUNCTION ERROR
+       * --------------------------------
+       */
 
-        console.log(
-          'CREATE ORGANISATION: EDGE FUNCTION FINISHED'
-        );
-
-        console.log(
-          'CREATE ORGANISATION: EDGE FUNCTION DATA',
-          functionData
-        );
-
-        console.log(
-          'CREATE ORGANISATION: EDGE FUNCTION ERROR',
+      if (functionError) {
+        console.error(
+          'Organisation admin function error:',
           functionError
         );
 
-        /*
-         * --------------------------------
-         * EDGE FUNCTION ERROR
-         * --------------------------------
-         */
-
-        if (functionError) {
-          console.error(
-            'Organisation admin function error:',
-            functionError
-          );
-
-          Alert.alert(
-            'Administrator Creation Failed',
-            `The organisation "${data.name}" was created, but the Organisation Administrator could not be created.\n\n${functionError.message || 'Please check the Edge Function.'}`
-          );
-
-          await loadOrganisations();
-
-          return;
-        }
-
-        /*
-         * --------------------------------
-         * EDGE FUNCTION RESPONSE ERROR
-         * --------------------------------
-         */
-
-        if (
-          !functionData?.success
-        ) {
-          console.error(
-            'Organisation admin provisioning failed:',
-            functionData
-          );
-
-          Alert.alert(
-            'Administrator Creation Failed',
-            functionData?.error ||
-              'The Organisation Administrator could not be created.'
-          );
-
-          await loadOrganisations();
-
-          return;
-        }
-
-        /*
-         * --------------------------------
-         * EVERYTHING SUCCESSFUL
-         * --------------------------------
-         */
-
-        console.log(
-          'CREATE ORGANISATION: EVERYTHING SUCCESSFUL'
-        );
-
         Alert.alert(
-          'Organisation Created Successfully',
-          `${data.name} has been registered in CIVITRACK and ${adminFullName.trim()} has been created as the Organisation Administrator.`
+          'Administrator Creation Failed',
+          `The organisation "${data.name}" was created, but the Organisation Administrator could not be created.\n\n${
+            functionError.message ||
+            'Please check the Edge Function.'
+          }`
         );
 
-        /*
-         * Reset form
-         */
-        resetForm();
-
-        /*
-         * Reload organisations
-         */
         await loadOrganisations();
 
-      } catch (error) {
-        console.error(
-          'Organisation creation error:',
-          error
-        );
+        return;
+      }
 
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'The organisation could not be created.';
+      /*
+       * --------------------------------
+       * EDGE FUNCTION RESPONSE ERROR
+       * --------------------------------
+       */
+
+      if (!functionData?.success) {
+        console.error(
+          'Organisation admin provisioning failed:',
+          functionData
+        );
 
         Alert.alert(
-          'Creation Failed',
-          message
+          'Administrator Creation Failed',
+          functionData?.error ||
+            'The Organisation Administrator could not be created.'
         );
 
-      } finally {
-        console.log(
-          'CREATE ORGANISATION: SAVING STATE DISABLED'
-        );
+        await loadOrganisations();
 
-        setSaving(false);
+        return;
       }
-    };
+
+      /*
+       * --------------------------------
+       * EVERYTHING SUCCESSFUL
+       * --------------------------------
+       */
+
+      console.log(
+        'CREATE ORGANISATION: EVERYTHING SUCCESSFUL'
+      );
+
+      Alert.alert(
+        'Organisation Created Successfully',
+        `${data.name} has been registered in CIVITRACK and ${adminFullName.trim()} has been created as the Organisation Administrator.`
+      );
+
+      /*
+       * Reset form
+       */
+      resetForm();
+
+      /*
+       * Reload organisations
+       */
+      await loadOrganisations();
+    } catch (error) {
+      console.error(
+        'Organisation creation error:',
+        error
+      );
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'The organisation could not be created.';
+
+      Alert.alert(
+        'Creation Failed',
+        message
+      );
+    } finally {
+      console.log(
+        'CREATE ORGANISATION: SAVING STATE DISABLED'
+      );
+
+      setSaving(false);
+    }
+  };
 
   /*
    * Format date for display
    */
-  const formatDate =
-    (date: string | null) => {
-      if (!date) {
-        return '—';
+  const formatDate = (date) => {
+    if (!date) {
+      return '—';
+    }
+
+    const value = new Date(date);
+
+    if (Number.isNaN(value.getTime())) {
+      return '—';
+    }
+
+    return value.toLocaleDateString(
+      'en-ZA',
+      {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
       }
-
-      const value =
-        new Date(date);
-
-      if (
-        Number.isNaN(
-          value.getTime()
-        )
-      ) {
-        return '—';
-      }
-
-      return value.toLocaleDateString(
-        'en-ZA',
-        {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-        }
-      );
-    };
+    );
+  };
 
   /*
    * Authentication loading state
    */
   if (authLoading) {
     return (
-      <SafeAreaView
-        style={styles.safeArea}
-      >
+      <SafeAreaView style={styles.safeArea}>
         <StatusBar
           barStyle="light-content"
           backgroundColor="#111111"
         />
 
-        <View
-          style={styles.loadingState}
-        >
+        <View style={styles.loadingState}>
           <ActivityIndicator
             size="large"
             color="#007A4D"
           />
 
-          <Text
-            style={styles.loadingText}
-          >
+          <Text style={styles.loadingText}>
             Checking administrator access...
           </Text>
         </View>
@@ -711,42 +603,28 @@ export default function OrganisationsScreen() {
    */
   if (!user) {
     return (
-      <SafeAreaView
-        style={styles.safeArea}
-      >
+      <SafeAreaView style={styles.safeArea}>
         <StatusBar
           barStyle="light-content"
           backgroundColor="#111111"
         />
 
-        <View
-          style={styles.emptyState}
-        >
-          <Text
-            style={styles.emptyTitle}
-          >
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>
             Authentication Required
           </Text>
 
-          <Text
-            style={styles.emptyText}
-          >
+          <Text style={styles.emptyText}>
             Please sign in before accessing organisation management.
           </Text>
 
           <Pressable
             style={styles.emptyButton}
             onPress={() =>
-              router.replace(
-                '/auth/login'
-              )
+              router.replace('/auth/login')
             }
           >
-            <Text
-              style={
-                styles.emptyButtonText
-              }
-            >
+            <Text style={styles.emptyButtonText}>
               GO TO LOGIN
             </Text>
           </Pressable>
@@ -758,46 +636,30 @@ export default function OrganisationsScreen() {
   /*
    * User is authenticated but not DSAC Admin
    */
-  if (
-    role !== ROLES.DSAC_ADMIN
-  ) {
+  if (role !== ROLES.DSAC_ADMIN) {
     return (
-      <SafeAreaView
-        style={styles.safeArea}
-      >
+      <SafeAreaView style={styles.safeArea}>
         <StatusBar
           barStyle="light-content"
           backgroundColor="#111111"
         />
 
-        <View
-          style={styles.emptyState}
-        >
-          <Text
-            style={styles.emptyTitle}
-          >
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyTitle}>
             Access Denied
           </Text>
 
-          <Text
-            style={styles.emptyText}
-          >
+          <Text style={styles.emptyText}>
             Only authorised DSAC administrators can manage organisations.
           </Text>
 
           <Pressable
             style={styles.emptyButton}
             onPress={() =>
-              router.replace(
-                '/dsac/dashboard'
-              )
+              router.replace('/dsac/dashboard')
             }
           >
-            <Text
-              style={
-                styles.emptyButtonText
-              }
-            >
+            <Text style={styles.emptyButtonText}>
               RETURN TO DASHBOARD
             </Text>
           </Pressable>
@@ -807,20 +669,15 @@ export default function OrganisationsScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={styles.safeArea}
-    >
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar
         barStyle="light-content"
         backgroundColor="#111111"
       />
 
       <ScrollView>
-
         {/* Government colour strip */}
-        <View
-          style={styles.flagStrip}
-        >
+        <View style={styles.flagStrip}>
           <View style={styles.black} />
           <View style={styles.gold} />
           <View style={styles.green} />
@@ -830,12 +687,9 @@ export default function OrganisationsScreen() {
 
         {/* Header */}
         <View style={styles.header}>
-
           <Pressable
             onPress={() =>
-              router.replace(
-                '/dsac/dashboard'
-              )
+              router.replace('/dsac/dashboard')
             }
           >
             <Text style={styles.back}>
@@ -844,37 +698,26 @@ export default function OrganisationsScreen() {
           </Pressable>
 
           <View>
-            <Text
-              style={styles.headerBrand}
-            >
+            <Text style={styles.headerBrand}>
               CIVITRACK
             </Text>
 
-            <Text
-              style={styles.headerSubtitle}
-            >
+            <Text style={styles.headerSubtitle}>
               DSAC Accountability Workspace
             </Text>
           </View>
-
         </View>
 
         {/* Main */}
         <View style={styles.main}>
-
           {/* Heading */}
           <View style={styles.heading}>
-
-            <View
-              style={styles.headingContent}
-            >
+            <View style={styles.headingContent}>
               <Text style={styles.title}>
                 Organisations
               </Text>
 
-              <Text
-                style={styles.description}
-              >
+              <Text style={styles.description}>
                 Register and manage NPOs and Public Entities
                 participating in DSAC-funded programmes.
               </Text>
@@ -887,49 +730,33 @@ export default function OrganisationsScreen() {
               }
               disabled={saving}
             >
-              <Text
-                style={styles.createButtonText}
-              >
+              <Text style={styles.createButtonText}>
                 + CREATE ORGANISATION
               </Text>
             </Pressable>
-
           </View>
 
           {/* Form */}
           {showForm && (
-            <View
-              style={styles.formCard}
-            >
+            <View style={styles.formCard}>
+              <View style={styles.formTop} />
 
-              <View
-                style={styles.formTop}
-              />
-
-              <Text
-                style={styles.formTitle}
-              >
+              <Text style={styles.formTitle}>
                 Register Organisation
               </Text>
 
-              <Text
-                style={styles.formDescription}
-              >
+              <Text style={styles.formDescription}>
                 Only authorised DSAC administrators can create
                 organisations and provision their first
                 Organisation Administrator.
               </Text>
 
               {/* ORGANISATION DETAILS */}
-
-              <Text
-                style={styles.sectionFormTitle}
-              >
+              <Text style={styles.sectionFormTitle}>
                 ORGANISATION DETAILS
               </Text>
 
               {/* Organisation name */}
-
               <Text style={styles.label}>
                 ORGANISATION NAME *
               </Text>
@@ -939,43 +766,32 @@ export default function OrganisationsScreen() {
                 placeholder="Enter organisation name"
                 placeholderTextColor="#888888"
                 value={organisationName}
-                onChangeText={
-                  setOrganisationName
-                }
+                onChangeText={setOrganisationName}
                 editable={!saving}
               />
 
               {/* Organisation type */}
-
               <Text style={styles.label}>
                 ORGANISATION TYPE *
               </Text>
 
-              <View
-                style={styles.typeRow}
-              >
-
+              <View style={styles.typeRow}>
                 {/* NPO */}
-
                 <Pressable
                   style={[
                     styles.typeButton,
-                    organisationType ===
-                      'NPO' &&
+                    organisationType === 'NPO' &&
                       styles.selectedType,
                   ]}
                   onPress={() =>
-                    setOrganisationType(
-                      'NPO'
-                    )
+                    setOrganisationType('NPO')
                   }
                   disabled={saving}
                 >
                   <Text
                     style={[
                       styles.typeText,
-                      organisationType ===
-                        'NPO' &&
+                      organisationType === 'NPO' &&
                         styles.selectedTypeText,
                     ]}
                   >
@@ -984,12 +800,10 @@ export default function OrganisationsScreen() {
                 </Pressable>
 
                 {/* Public Entity */}
-
                 <Pressable
                   style={[
                     styles.typeButton,
-                    organisationType ===
-                      'PUBLIC_ENTITY' &&
+                    organisationType === 'PUBLIC_ENTITY' &&
                       styles.selectedType,
                   ]}
                   onPress={() =>
@@ -1002,28 +816,22 @@ export default function OrganisationsScreen() {
                   <Text
                     style={[
                       styles.typeText,
-                      organisationType ===
-                        'PUBLIC_ENTITY' &&
+                      organisationType === 'PUBLIC_ENTITY' &&
                         styles.selectedTypeText,
                     ]}
                   >
                     PUBLIC ENTITY
                   </Text>
                 </Pressable>
-
               </View>
 
-              <Text
-                style={styles.typeHint}
-              >
-                {organisationType ===
-                'NPO'
+              <Text style={styles.typeHint}>
+                {organisationType === 'NPO'
                   ? 'Non-Profit Organisation participating in a DSAC-funded programme.'
                   : 'Public Entity participating in a DSAC-funded programme.'}
               </Text>
 
               {/* Registration number */}
-
               <Text style={styles.label}>
                 REGISTRATION NUMBER *
               </Text>
@@ -1031,23 +839,17 @@ export default function OrganisationsScreen() {
               <TextInput
                 style={styles.input}
                 placeholder={
-                  organisationType ===
-                  'NPO'
+                  organisationType === 'NPO'
                     ? 'e.g. NPO registration number'
                     : 'e.g. public entity registration/reference number'
                 }
                 placeholderTextColor="#888888"
-                value={
-                  registrationNumber
-                }
-                onChangeText={
-                  setRegistrationNumber
-                }
+                value={registrationNumber}
+                onChangeText={setRegistrationNumber}
                 editable={!saving}
               />
 
               {/* Organisation email */}
-
               <Text style={styles.label}>
                 ORGANISATION EMAIL *
               </Text>
@@ -1064,30 +866,17 @@ export default function OrganisationsScreen() {
               />
 
               {/* ORGANISATION ADMIN */}
-
-              <View
-                style={styles.adminSection}
-              >
-
-                <Text
-                  style={
-                    styles.sectionFormTitle
-                  }
-                >
+              <View style={styles.adminSection}>
+                <Text style={styles.sectionFormTitle}>
                   FIRST ORGANISATION ADMINISTRATOR
                 </Text>
 
-                <Text
-                  style={
-                    styles.adminDescription
-                  }
-                >
+                <Text style={styles.adminDescription}>
                   This user will receive access to the organisation
                   workspace and will manage the organisation's staff.
                 </Text>
 
                 {/* Admin full name */}
-
                 <Text style={styles.label}>
                   ADMINISTRATOR FULL NAME *
                 </Text>
@@ -1097,14 +886,11 @@ export default function OrganisationsScreen() {
                   placeholder="Enter administrator full name"
                   placeholderTextColor="#888888"
                   value={adminFullName}
-                  onChangeText={
-                    setAdminFullName
-                  }
+                  onChangeText={setAdminFullName}
                   editable={!saving}
                 />
 
                 {/* Admin email */}
-
                 <Text style={styles.label}>
                   ADMINISTRATOR EMAIL *
                 </Text>
@@ -1114,47 +900,31 @@ export default function OrganisationsScreen() {
                   placeholder="admin@example.org"
                   placeholderTextColor="#888888"
                   value={adminEmail}
-                  onChangeText={
-                    setAdminEmail
-                  }
+                  onChangeText={setAdminEmail}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   editable={!saving}
                 />
 
                 {/* Temporary password */}
-
                 <Text style={styles.label}>
                   TEMPORARY PASSWORD *
                 </Text>
 
-                <View
-                  style={
-                    styles.passwordContainer
-                  }
-                >
-
+                <View style={styles.passwordContainer}>
                   <TextInput
-                    style={
-                      styles.passwordInput
-                    }
+                    style={styles.passwordInput}
                     placeholder="Minimum 8 characters"
                     placeholderTextColor="#888888"
                     value={adminPassword}
-                    onChangeText={
-                      setAdminPassword
-                    }
-                    secureTextEntry={
-                      !adminPasswordVisible
-                    }
+                    onChangeText={setAdminPassword}
+                    secureTextEntry={!adminPasswordVisible}
                     autoCapitalize="none"
                     editable={!saving}
                   />
 
                   <Pressable
-                    style={
-                      styles.passwordButton
-                    }
+                    style={styles.passwordButton}
                     onPress={() =>
                       setAdminPasswordVisible(
                         !adminPasswordVisible
@@ -1162,21 +932,15 @@ export default function OrganisationsScreen() {
                     }
                     disabled={saving}
                   >
-                    <Text
-                      style={
-                        styles.passwordButtonText
-                      }
-                    >
+                    <Text style={styles.passwordButtonText}>
                       {adminPasswordVisible
                         ? 'HIDE'
                         : 'SHOW'}
                     </Text>
                   </Pressable>
-
                 </View>
 
                 {/* Confirm password */}
-
                 <Text style={styles.label}>
                   CONFIRM TEMPORARY PASSWORD *
                 </Text>
@@ -1185,66 +949,35 @@ export default function OrganisationsScreen() {
                   style={styles.input}
                   placeholder="Re-enter temporary password"
                   placeholderTextColor="#888888"
-                  value={
-                    adminPasswordConfirm
-                  }
-                  onChangeText={
-                    setAdminPasswordConfirm
-                  }
-                  secureTextEntry={
-                    !adminPasswordVisible
-                  }
+                  value={adminPasswordConfirm}
+                  onChangeText={setAdminPasswordConfirm}
+                  secureTextEntry={!adminPasswordVisible}
                   autoCapitalize="none"
                   editable={!saving}
                 />
 
-                <View
-                  style={
-                    styles.securityNotice
-                  }
-                >
-
-                  <Text
-                    style={
-                      styles.securityNoticeTitle
-                    }
-                  >
+                <View style={styles.securityNotice}>
+                  <Text style={styles.securityNoticeTitle}>
                     🔒 SECURITY
                   </Text>
 
-                  <Text
-                    style={
-                      styles.securityNoticeText
-                    }
-                  >
+                  <Text style={styles.securityNoticeText}>
                     The password is sent directly to Supabase
                     Authentication through the secure server-side
                     provisioning function. It is not stored in the
                     CIVITRACK database.
                   </Text>
-
                 </View>
-
               </View>
 
               {/* Actions */}
-
-              <View
-                style={styles.formActions}
-              >
-
+              <View style={styles.formActions}>
                 <Pressable
-                  style={
-                    styles.cancelButton
-                  }
+                  style={styles.cancelButton}
                   onPress={resetForm}
                   disabled={saving}
                 >
-                  <Text
-                    style={
-                      styles.cancelText
-                    }
-                  >
+                  <Text style={styles.cancelText}>
                     CANCEL
                   </Text>
                 </Pressable>
@@ -1252,15 +985,11 @@ export default function OrganisationsScreen() {
                 <Pressable
                   style={[
                     styles.saveButton,
-                    saving &&
-                      styles.saveDisabled,
+                    saving && styles.saveDisabled,
                   ]}
-                  onPress={
-                    createOrganisation
-                  }
+                  onPress={createOrganisation}
                   disabled={saving}
                 >
-
                   {saving ? (
                     <>
                       <ActivityIndicator
@@ -1268,169 +997,100 @@ export default function OrganisationsScreen() {
                         color="#FFFFFF"
                       />
 
-                      <Text
-                        style={
-                          styles.savingText
-                        }
-                      >
+                      <Text style={styles.savingText}>
                         CREATING...
                       </Text>
                     </>
                   ) : (
-                    <Text
-                      style={
-                        styles.saveText
-                      }
-                    >
+                    <Text style={styles.saveText}>
                       CREATE ORGANISATION
                     </Text>
                   )}
-
                 </Pressable>
-
               </View>
-
             </View>
           )}
 
           {/* Information */}
-
-          <View
-            style={styles.infoCard}
-          >
-
-            <View
-              style={styles.infoIcon}
-            >
-              <Text
-                style={styles.infoIconText}
-              >
+          <View style={styles.infoCard}>
+            <View style={styles.infoIcon}>
+              <Text style={styles.infoIconText}>
                 i
               </Text>
             </View>
 
-            <View
-              style={styles.infoContent}
-            >
-
-              <Text
-                style={styles.infoTitle}
-              >
+            <View style={styles.infoContent}>
+              <Text style={styles.infoTitle}>
                 Organisation access
               </Text>
 
-              <Text
-                style={styles.infoText}
-              >
+              <Text style={styles.infoText}>
                 Organisations do not self-register. A DSAC
                 administrator creates the organisation and
                 provisions its first Organisation Administrator.
                 The organisation may be an NPO or a Public Entity.
               </Text>
-
             </View>
-
           </View>
 
           {/* Registered organisations */}
-
-          <Text
-            style={styles.sectionTitle}
-          >
+          <Text style={styles.sectionTitle}>
             REGISTERED ORGANISATIONS
           </Text>
 
           {loading ? (
-            <View
-              style={styles.loadingState}
-            >
+            <View style={styles.loadingState}>
               <ActivityIndicator
                 size="large"
                 color="#007A4D"
               />
 
-              <Text
-                style={styles.loadingText}
-              >
+              <Text style={styles.loadingText}>
                 Loading organisations...
               </Text>
             </View>
           ) : organisations.length === 0 ? (
-            <View
-              style={styles.emptyState}
-            >
-
-              <Text
-                style={styles.emptyIcon}
-              >
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>
                 +
               </Text>
 
-              <Text
-                style={styles.emptyTitle}
-              >
+              <Text style={styles.emptyTitle}>
                 No organisations yet
               </Text>
 
-              <Text
-                style={styles.emptyText}
-              >
+              <Text style={styles.emptyText}>
                 Create the first organisation to begin the
                 CIVITRACK accountability workflow.
               </Text>
 
               <Pressable
-                style={
-                  styles.emptyButton
-                }
+                style={styles.emptyButton}
                 onPress={() =>
                   setShowForm(true)
                 }
               >
-                <Text
-                  style={
-                    styles.emptyButtonText
-                  }
-                >
+                <Text style={styles.emptyButtonText}>
                   CREATE FIRST ORGANISATION
                 </Text>
               </Pressable>
-
             </View>
           ) : (
-            <View
-              style={
-                styles.organisationList
-              }
-            >
-
+            <View style={styles.organisationList}>
               {organisations.map(
                 (organisation) => (
                   <View
                     key={organisation.id}
-                    style={
-                      styles.organisationCard
-                    }
+                    style={styles.organisationCard}
                   >
+                    <View style={styles.organisationTop} />
 
-                    <View
-                      style={
-                        styles.organisationTop
-                      }
-                    />
-
-                    <View
-                      style={
-                        styles.organisationHeader
-                      }
-                    >
-
+                    <View style={styles.organisationHeader}>
                       <View
                         style={
                           styles.organisationHeaderContent
                         }
                       >
-
                         <Text
                           style={
                             styles.organisationName
@@ -1444,11 +1104,8 @@ export default function OrganisationsScreen() {
                             styles.organisationRegistration
                           }
                         >
-                          {
-                            organisation.registration_number
-                          }
+                          {organisation.registration_number}
                         </Text>
-
                       </View>
 
                       <View
@@ -1474,49 +1131,24 @@ export default function OrganisationsScreen() {
                       <View
                         style={[
                           styles.statusBadge,
-                          organisation.status ===
-                            'ACTIVE' &&
+                          organisation.status === 'ACTIVE' &&
                             styles.activeBadge,
                         ]}
                       >
-                        <Text
-                          style={
-                            styles.statusText
-                          }
-                        >
-                          {
-                            organisation.status ||
-                            'UNKNOWN'
-                          }
+                        <Text style={styles.statusText}>
+                          {organisation.status ||
+                            'UNKNOWN'}
                         </Text>
                       </View>
-
                     </View>
 
-                    <View
-                      style={
-                        styles.organisationDetails
-                      }
-                    >
-
-                      <View
-                        style={
-                          styles.detailItem
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.detailLabel
-                          }
-                        >
+                    <View style={styles.organisationDetails}>
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>
                           TYPE
                         </Text>
 
-                        <Text
-                          style={
-                            styles.detailValue
-                          }
-                        >
+                        <Text style={styles.detailValue}>
                           {organisation.organisation_type ===
                           'PUBLIC_ENTITY'
                             ? 'Public Entity'
@@ -1524,96 +1156,53 @@ export default function OrganisationsScreen() {
                         </Text>
                       </View>
 
-                      <View
-                        style={
-                          styles.detailItem
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.detailLabel
-                          }
-                        >
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>
                           EMAIL
                         </Text>
 
-                        <Text
-                          style={
-                            styles.detailValue
-                          }
-                        >
-                          {organisation.email ||
-                            '—'}
+                        <Text style={styles.detailValue}>
+                          {organisation.email || '—'}
                         </Text>
                       </View>
 
-                      <View
-                        style={
-                          styles.detailItem
-                        }
-                      >
-                        <Text
-                          style={
-                            styles.detailLabel
-                          }
-                        >
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>
                           REGISTERED
                         </Text>
 
-                        <Text
-                          style={
-                            styles.detailValue
-                          }
-                        >
+                        <Text style={styles.detailValue}>
                           {formatDate(
                             organisation.created_at
                           )}
                         </Text>
                       </View>
-
                     </View>
-
                   </View>
                 )
               )}
-
             </View>
           )}
-
         </View>
 
         {/* Footer */}
-
-        <View
-          style={styles.footer}
-        >
-
-          <Text
-            style={styles.footerTitle}
-          >
+        <View style={styles.footer}>
+          <Text style={styles.footerTitle}>
             CIVITRACK
           </Text>
 
-          <Text
-            style={styles.footerText}
-          >
+          <Text style={styles.footerText}>
             Public Funding & Accountability Platform
           </Text>
 
-          <Text
-            style={styles.footerText}
-          >
+          <Text style={styles.footerText}>
             Department of Sport, Arts and Culture
           </Text>
 
-          <Text
-            style={styles.footerCopyright}
-          >
+          <Text style={styles.footerCopyright}>
             © 2026 Republic of South Africa
           </Text>
-
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -2181,3 +1770,4 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 });
+
