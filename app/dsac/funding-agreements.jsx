@@ -12,6 +12,8 @@ import {
   View,
 } from 'react-native';
 
+import DateTimePicker from '@react-native-community/datetimepicker';
+
 import { router } from 'expo-router';
 
 export default function FundingAgreementsScreen() {
@@ -20,34 +22,314 @@ export default function FundingAgreementsScreen() {
   const [agreementNumber, setAgreementNumber] = useState('');
   const [organisation, setOrganisation] = useState('');
   const [amount, setAmount] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+
+  const [errors, setErrors] = useState({
+    agreementNumber: '',
+    organisation: '',
+    amount: '',
+    startDate: '',
+    endDate: '',
+  });
+
+  /* ================================================= */
+  /* DATE HELPERS */
+  /* ================================================= */
+
+  const formatDate = (date) => {
+    if (!date) {
+      return '';
+    }
+
+    const year = date.getFullYear();
+    const month = String(
+      date.getMonth() + 1
+    ).padStart(2, '0');
+
+    const day = String(
+      date.getDate()
+    ).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+  };
+
+  const getToday = () => {
+    const today = new Date();
+
+    today.setHours(0, 0, 0, 0);
+
+    return today;
+  };
+
+  /* ================================================= */
+  /* VALIDATION */
+  /* ================================================= */
+
+  const validateForm = () => {
+    const newErrors = {
+      agreementNumber: '',
+      organisation: '',
+      amount: '',
+      startDate: '',
+      endDate: '',
+    };
+
+    const cleanAgreementNumber =
+      agreementNumber.trim().toUpperCase();
+
+    const cleanOrganisation =
+      organisation.trim();
+
+    const cleanAmount =
+      amount.replace(/[\s,]/g, '');
+
+    /* --------------------------------------------- */
+    /* AGREEMENT NUMBER */
+    /* --------------------------------------------- */
+
+    if (!cleanAgreementNumber) {
+      newErrors.agreementNumber =
+        'Agreement number is required.';
+    } else if (
+      !/^DSAC-FA-\d{4}-\d{3,}$/.test(
+        cleanAgreementNumber
+      )
+    ) {
+      newErrors.agreementNumber =
+        'Use the format DSAC-FA-2026-001.';
+    }
+
+    /* --------------------------------------------- */
+    /* ORGANISATION */
+    /* --------------------------------------------- */
+
+    if (!cleanOrganisation) {
+      newErrors.organisation =
+        'Organisation is required.';
+    } else if (
+      cleanOrganisation.length < 2
+    ) {
+      newErrors.organisation =
+        'Please enter a valid organisation name.';
+    }
+
+    /* --------------------------------------------- */
+    /* AMOUNT */
+    /* --------------------------------------------- */
+
+    if (!cleanAmount) {
+      newErrors.amount =
+        'Funding amount is required.';
+    } else if (
+      !/^\d+(\.\d{1,2})?$/.test(cleanAmount)
+    ) {
+      newErrors.amount =
+        'Enter a valid amount, for example 500000 or 500000.00.';
+    } else if (
+      Number(cleanAmount) <= 0
+    ) {
+      newErrors.amount =
+        'Funding amount must be greater than R0.';
+    }
+
+    /* --------------------------------------------- */
+    /* START DATE */
+    /* --------------------------------------------- */
+
+    if (!startDate) {
+      newErrors.startDate =
+        'Start date is required.';
+    } else if (
+      startDate < getToday()
+    ) {
+      newErrors.startDate =
+        'Start date cannot be in the past.';
+    }
+
+    /* --------------------------------------------- */
+    /* END DATE */
+    /* --------------------------------------------- */
+
+    if (!endDate) {
+      newErrors.endDate =
+        'End date is required.';
+    } else if (
+      startDate &&
+      endDate < startDate
+    ) {
+      newErrors.endDate =
+        'End date cannot be before the start date.';
+    }
+
+    setErrors(newErrors);
+
+    return !Object.values(newErrors).some(
+      (error) => error !== ''
+    );
+  };
+
+  /* ================================================= */
+  /* SAVE AGREEMENT */
+  /* ================================================= */
 
   const saveAgreement = () => {
-    if (
-      !agreementNumber ||
-      !organisation ||
-      !amount ||
-      !startDate ||
-      !endDate
-    ) {
-      Alert.alert(
-        'Missing Information',
-        'Please complete all funding agreement fields.'
-      );
+    if (!validateForm()) {
       return;
     }
 
+    const cleanAgreementNumber =
+      agreementNumber.trim().toUpperCase();
+
+    const cleanOrganisation =
+      organisation.trim();
+
+    const cleanAmount =
+      amount.replace(/[\s,]/g, '');
+
+    console.log(
+      'CIVITRACK Funding Agreement:',
+      {
+        agreementNumber:
+          cleanAgreementNumber,
+        organisation:
+          cleanOrganisation,
+        amount:
+          Number(cleanAmount),
+        startDate:
+          formatDate(startDate),
+        endDate:
+          formatDate(endDate),
+      }
+    );
+
     Alert.alert(
       'Funding Agreement',
-      'The funding agreement has been captured for the MVP. Supabase persistence will be connected next.'
+      'The funding agreement has been successfully validated and captured for the MVP. Supabase persistence will be connected next.'
     );
 
     setAgreementNumber('');
     setOrganisation('');
     setAmount('');
-    setStartDate('');
-    setEndDate('');
+    setStartDate(null);
+    setEndDate(null);
+
+    setErrors({
+      agreementNumber: '',
+      organisation: '',
+      amount: '',
+      startDate: '',
+      endDate: '',
+    });
+
+    setShowForm(false);
+  };
+
+  /* ================================================= */
+  /* START DATE PICKER */
+  /* ================================================= */
+
+  const handleStartDateChange = (
+    event,
+    selectedDate
+  ) => {
+    setShowStartPicker(false);
+
+    if (
+      event?.type === 'dismissed' ||
+      !selectedDate
+    ) {
+      return;
+    }
+
+    selectedDate.setHours(0, 0, 0, 0);
+
+    setStartDate(selectedDate);
+
+    setErrors((previous) => ({
+      ...previous,
+      startDate: '',
+    }));
+
+    /*
+     * If an existing end date is now before
+     * the selected start date, clear it.
+     */
+    if (
+      endDate &&
+      endDate < selectedDate
+    ) {
+      setEndDate(null);
+
+      setErrors((previous) => ({
+        ...previous,
+        startDate: '',
+        endDate:
+          'Please select an end date after the start date.',
+      }));
+    } else {
+      setErrors((previous) => ({
+        ...previous,
+        endDate: '',
+      }));
+    }
+  };
+
+  /* ================================================= */
+  /* END DATE PICKER */
+  /* ================================================= */
+
+  const handleEndDateChange = (
+    event,
+    selectedDate
+  ) => {
+    setShowEndPicker(false);
+
+    if (
+      event?.type === 'dismissed' ||
+      !selectedDate
+    ) {
+      return;
+    }
+
+    selectedDate.setHours(0, 0, 0, 0);
+
+    setEndDate(selectedDate);
+
+    if (
+      startDate &&
+      selectedDate < startDate
+    ) {
+      setErrors((previous) => ({
+        ...previous,
+        endDate:
+          'End date cannot be before the start date.',
+      }));
+    } else {
+      setErrors((previous) => ({
+        ...previous,
+        endDate: '',
+      }));
+    }
+  };
+
+  /* ================================================= */
+  /* OPEN FORM */
+  /* ================================================= */
+
+  const openForm = () => {
+    setShowForm(true);
+  };
+
+  /* ================================================= */
+  /* CLOSE FORM */
+  /* ================================================= */
+
+  const closeForm = () => {
     setShowForm(false);
   };
 
@@ -87,13 +369,14 @@ export default function FundingAgreementsScreen() {
 
           <View style={styles.govIdentity}>
 
-            {/* Temporary RSA emblem */}
             <View style={styles.emblemContainer}>
 
               <View style={styles.emblem}>
+
                 <Text style={styles.emblemText}>
                   RSA
                 </Text>
+
               </View>
 
             </View>
@@ -140,8 +423,6 @@ export default function FundingAgreementsScreen() {
 
           </View>
 
-
-          {/* TOP RIGHT ACTIONS */}
 
           <View style={styles.systemActions}>
 
@@ -250,7 +531,9 @@ export default function FundingAgreementsScreen() {
                 styles.createButton,
                 pressed && styles.buttonPressed,
               ]}
-              onPress={() => setShowForm(!showForm)}
+              onPress={() =>
+                setShowForm(!showForm)
+              }
             >
 
               <Text style={styles.createButtonPlus}>
@@ -315,7 +598,9 @@ export default function FundingAgreementsScreen() {
               <View style={styles.formDivider} />
 
 
+              {/* ================================================= */}
               {/* AGREEMENT NUMBER */}
+              {/* ================================================= */}
 
               <View style={styles.field}>
 
@@ -327,18 +612,48 @@ export default function FundingAgreementsScreen() {
                 </Text>
 
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    errors.agreementNumber &&
+                      styles.inputError,
+                  ]}
                   placeholder="e.g. DSAC-FA-2026-001"
                   placeholderTextColor="#8A9298"
                   value={agreementNumber}
-                  onChangeText={setAgreementNumber}
+                  onChangeText={(text) => {
+                    setAgreementNumber(
+                      text.toUpperCase()
+                    );
+
+                    if (
+                      errors.agreementNumber
+                    ) {
+                      setErrors((previous) => ({
+                        ...previous,
+                        agreementNumber: '',
+                      }));
+                    }
+                  }}
                   autoCapitalize="characters"
+                  autoCorrect={false}
                 />
+
+                {errors.agreementNumber ? (
+                  <Text style={styles.errorText}>
+                    {errors.agreementNumber}
+                  </Text>
+                ) : (
+                  <Text style={styles.helperText}>
+                    Format: DSAC-FA-YYYY-001
+                  </Text>
+                )}
 
               </View>
 
 
+              {/* ================================================= */}
               {/* ORGANISATION */}
+              {/* ================================================= */}
 
               <View style={styles.field}>
 
@@ -350,17 +665,41 @@ export default function FundingAgreementsScreen() {
                 </Text>
 
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    errors.organisation &&
+                      styles.inputError,
+                  ]}
                   placeholder="Enter or select organisation"
                   placeholderTextColor="#8A9298"
                   value={organisation}
-                  onChangeText={setOrganisation}
+                  onChangeText={(text) => {
+                    setOrganisation(text);
+
+                    if (
+                      errors.organisation
+                    ) {
+                      setErrors((previous) => ({
+                        ...previous,
+                        organisation: '',
+                      }));
+                    }
+                  }}
+                  autoCorrect={false}
                 />
+
+                {errors.organisation ? (
+                  <Text style={styles.errorText}>
+                    {errors.organisation}
+                  </Text>
+                ) : null}
 
               </View>
 
 
+              {/* ================================================= */}
               {/* AMOUNT */}
+              {/* ================================================= */}
 
               <View style={styles.field}>
 
@@ -371,7 +710,13 @@ export default function FundingAgreementsScreen() {
                   </Text>
                 </Text>
 
-                <View style={styles.amountInputContainer}>
+                <View
+                  style={[
+                    styles.amountInputContainer,
+                    errors.amount &&
+                      styles.inputError,
+                  ]}
+                >
 
                   <Text style={styles.currencyPrefix}>
                     R
@@ -379,21 +724,55 @@ export default function FundingAgreementsScreen() {
 
                   <TextInput
                     style={styles.amountInput}
-                    placeholder="500 000"
+                    placeholder="500000.00"
                     placeholderTextColor="#8A9298"
                     value={amount}
-                    onChangeText={setAmount}
-                    keyboardType="numeric"
+                    onChangeText={(text) => {
+                      /*
+                       * Allow only numbers,
+                       * decimal point and spaces.
+                       */
+                      const cleaned =
+                        text.replace(
+                          /[^0-9. ]/g,
+                          ''
+                        );
+
+                      setAmount(cleaned);
+
+                      if (errors.amount) {
+                        setErrors((previous) => ({
+                          ...previous,
+                          amount: '',
+                        }));
+                      }
+                    }}
+                    keyboardType="decimal-pad"
+                    autoCorrect={false}
                   />
 
                 </View>
 
+                {errors.amount ? (
+                  <Text style={styles.errorText}>
+                    {errors.amount}
+                  </Text>
+                ) : (
+                  <Text style={styles.helperText}>
+                    Enter the funding amount in South African Rand.
+                  </Text>
+                )}
+
               </View>
 
 
-              {/* DATES */}
+              {/* ================================================= */}
+              {/* DATE SECTION */}
+              {/* ================================================= */}
 
               <View style={styles.dateRow}>
+
+                {/* START DATE */}
 
                 <View style={styles.dateField}>
 
@@ -404,16 +783,49 @@ export default function FundingAgreementsScreen() {
                     </Text>
                   </Text>
 
-                  <TextInput
-                    style={styles.input}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#8A9298"
-                    value={startDate}
-                    onChangeText={setStartDate}
-                  />
+                  <Pressable
+                    style={[
+                      styles.dateInput,
+                      errors.startDate &&
+                        styles.inputError,
+                    ]}
+                    onPress={() =>
+                      setShowStartPicker(true)
+                    }
+                  >
+
+                    <Text
+                      style={
+                        startDate
+                          ? styles.dateValue
+                          : styles.datePlaceholder
+                      }
+                    >
+                      {startDate
+                        ? formatDate(startDate)
+                        : 'Select start date'}
+                    </Text>
+
+                    <Text style={styles.calendarIcon}>
+                      📅
+                    </Text>
+
+                  </Pressable>
+
+                  {errors.startDate ? (
+                    <Text style={styles.errorText}>
+                      {errors.startDate}
+                    </Text>
+                  ) : (
+                    <Text style={styles.helperText}>
+                      Select from the calendar.
+                    </Text>
+                  )}
 
                 </View>
 
+
+                {/* END DATE */}
 
                 <View style={styles.dateField}>
 
@@ -424,29 +836,117 @@ export default function FundingAgreementsScreen() {
                     </Text>
                   </Text>
 
-                  <TextInput
-                    style={styles.input}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#8A9298"
-                    value={endDate}
-                    onChangeText={setEndDate}
-                  />
+                  <Pressable
+                    style={[
+                      styles.dateInput,
+                      errors.endDate &&
+                        styles.inputError,
+                    ]}
+                    onPress={() =>
+                      setShowEndPicker(true)
+                    }
+                  >
+
+                    <Text
+                      style={
+                        endDate
+                          ? styles.dateValue
+                          : styles.datePlaceholder
+                      }
+                    >
+                      {endDate
+                        ? formatDate(endDate)
+                        : 'Select end date'}
+                    </Text>
+
+                    <Text style={styles.calendarIcon}>
+                      📅
+                    </Text>
+
+                  </Pressable>
+
+                  {errors.endDate ? (
+                    <Text style={styles.errorText}>
+                      {errors.endDate}
+                    </Text>
+                  ) : (
+                    <Text style={styles.helperText}>
+                      Must be after start date.
+                    </Text>
+                  )}
 
                 </View>
 
               </View>
 
 
+              {/* ================================================= */}
+              {/* START DATE PICKER */}
+              {/* ================================================= */}
+
+              {showStartPicker && (
+
+                <DateTimePicker
+                  value={
+                    startDate ||
+                    getToday()
+                  }
+                  mode="date"
+                  display={
+                    'default'
+                  }
+                  minimumDate={
+                    getToday()
+                  }
+                  onChange={
+                    handleStartDateChange
+                  }
+                />
+
+              )}
+
+
+              {/* ================================================= */}
+              {/* END DATE PICKER */}
+              {/* ================================================= */}
+
+              {showEndPicker && (
+
+                <DateTimePicker
+                  value={
+                    endDate ||
+                    startDate ||
+                    getToday()
+                  }
+                  mode="date"
+                  display={
+                    'default'
+                  }
+                  minimumDate={
+                    startDate ||
+                    getToday()
+                  }
+                  onChange={
+                    handleEndDateChange
+                  }
+                />
+
+              )}
+
+
+              {/* ================================================= */}
               {/* FORM ACTIONS */}
+              {/* ================================================= */}
 
               <View style={styles.actions}>
 
                 <Pressable
                   style={({ pressed }) => [
                     styles.cancel,
-                    pressed && styles.buttonPressed,
+                    pressed &&
+                      styles.buttonPressed,
                   ]}
-                  onPress={() => setShowForm(false)}
+                  onPress={closeForm}
                 >
 
                   <Text style={styles.cancelText}>
@@ -459,7 +959,8 @@ export default function FundingAgreementsScreen() {
                 <Pressable
                   style={({ pressed }) => [
                     styles.save,
-                    pressed && styles.buttonPressed,
+                    pressed &&
+                      styles.buttonPressed,
                   ]}
                   onPress={saveAgreement}
                 >
@@ -490,9 +991,11 @@ export default function FundingAgreementsScreen() {
               <View style={styles.summaryCardHeader}>
 
                 <View style={styles.summaryIconGreen}>
+
                   <Text style={styles.summaryIconText}>
                     FA
                   </Text>
+
                 </View>
 
                 <Text style={styles.summaryLabel}>
@@ -521,9 +1024,11 @@ export default function FundingAgreementsScreen() {
               <View style={styles.summaryCardHeader}>
 
                 <View style={styles.summaryIconGold}>
+
                   <Text style={styles.summaryIconTextDark}>
                     R
                   </Text>
+
                 </View>
 
                 <Text style={styles.summaryLabel}>
@@ -552,9 +1057,11 @@ export default function FundingAgreementsScreen() {
               <View style={styles.summaryCardHeader}>
 
                 <View style={styles.summaryIconBlue}>
+
                   <Text style={styles.summaryIconText}>
                     P
                   </Text>
+
                 </View>
 
                 <Text style={styles.summaryLabel}>
@@ -640,9 +1147,10 @@ export default function FundingAgreementsScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.emptyButton,
-                pressed && styles.buttonPressed,
+                pressed &&
+                  styles.buttonPressed,
               ]}
-              onPress={() => setShowForm(true)}
+              onPress={openForm}
             >
 
               <Text style={styles.emptyButtonText}>
@@ -1154,6 +1662,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
+  inputError: {
+    borderColor: '#C0392B',
+    backgroundColor: '#FFF8F7',
+  },
+
+  errorText: {
+    color: '#C0392B',
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 5,
+    lineHeight: 13,
+  },
+
+  helperText: {
+    color: '#8A9298',
+    fontSize: 8,
+    marginTop: 5,
+  },
+
   amountInputContainer: {
     height: 49,
     borderWidth: 1,
@@ -1179,6 +1706,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
+
+  /* ================================================= */
+  /* DATE INPUT */
+  /* ================================================= */
+
   dateRow: {
     flexDirection: 'row',
     gap: 18,
@@ -1187,6 +1719,36 @@ const styles = StyleSheet.create({
   dateField: {
     flex: 1,
   },
+
+  dateInput: {
+    height: 49,
+    borderWidth: 1,
+    borderColor: '#C8CED2',
+    backgroundColor: '#FAFBFB',
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+
+  dateValue: {
+    color: '#1E272F',
+    fontSize: 13,
+  },
+
+  datePlaceholder: {
+    color: '#8A9298',
+    fontSize: 13,
+  },
+
+  calendarIcon: {
+    fontSize: 15,
+  },
+
+
+  /* ================================================= */
+  /* FORM ACTIONS */
+  /* ================================================= */
 
   actions: {
     flexDirection: 'row',
@@ -1554,4 +2116,4 @@ const styles = StyleSheet.create({
     fontSize: 8,
   },
 
-});
+})
