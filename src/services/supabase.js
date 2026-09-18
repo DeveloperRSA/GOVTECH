@@ -20,3 +20,4 @@ export const supabase = createClient(
     },
   }
 );
+console.log('FRONTEND SUPABASE URL:', supabaseUrl);
