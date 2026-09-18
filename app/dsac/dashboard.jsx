@@ -4,7 +4,7 @@ import React, {
 } from 'react';
 
 import {
-  ActivityIndicator,
+  Image,
   Pressable,
   RefreshControl,
   SafeAreaView,
@@ -103,17 +103,10 @@ export default function DSACDashboard() {
       }
 
       setStats({
-        organisations:
-          organisationsResult.count ?? 0,
-
-        fundingAgreements:
-          fundingResult.count ?? 0,
-
-        accountabilityCases:
-          casesResult.count ?? 0,
-
-        pendingReviews:
-          reviewsResult.count ?? 0,
+        organisations: organisationsResult.count ?? 0,
+        fundingAgreements: fundingResult.count ?? 0,
+        accountabilityCases: casesResult.count ?? 0,
+        pendingReviews: reviewsResult.count ?? 0,
       });
     } catch (error) {
       console.error(
@@ -158,9 +151,10 @@ export default function DSACDashboard() {
       allowedRoles={[ROLES.DSAC_ADMIN]}
     >
       <SafeAreaView style={styles.safeArea}>
+
         <StatusBar
           barStyle="light-content"
-          backgroundColor="#111111"
+          backgroundColor="#18202A"
         />
 
         <ScrollView
@@ -174,37 +168,53 @@ export default function DSACDashboard() {
           }
         >
 
-          {/* Government colour strip */}
+          {/* ================================================= */}
+          {/* SOUTH AFRICAN COLOUR STRIP */}
+          {/* ================================================= */}
 
           <View style={styles.flagStrip}>
-            <View style={styles.blackStrip} />
-            <View style={styles.goldStrip} />
-            <View style={styles.greenStrip} />
-            <View style={styles.blueStrip} />
-            <View style={styles.redStrip} />
+            <View style={styles.flagBlack} />
+            <View style={styles.flagGold} />
+            <View style={styles.flagGreen} />
+            <View style={styles.flagBlue} />
+            <View style={styles.flagRed} />
           </View>
 
 
-          {/* Header */}
+          {/* ================================================= */}
+          {/* GOVERNMENT MASTHEAD */}
+          {/* ================================================= */}
 
-          <View style={styles.header}>
+          <View style={styles.govHeader}>
 
-            <View style={styles.identity}>
+            <View style={styles.govIdentity}>
 
-              <View style={styles.emblem}>
-                <Text style={styles.emblemText}>
-                  SA
-                </Text>
+              {/* Official Coat of Arms */}
+              <View style={styles.coatOfArmsContainer}>
+
+                <Image
+                  source={require('../../assets/images/sa.jpg')}
+                  style={styles.coatOfArms}
+                  resizeMode="contain"
+                />
+
               </View>
 
-              <View>
+
+              <View style={styles.govText}>
 
                 <Text style={styles.republic}>
                   REPUBLIC OF SOUTH AFRICA
                 </Text>
 
                 <Text style={styles.department}>
-                  Department of Sport, Arts and Culture
+                  DEPARTMENT OF SPORT, ARTS AND CULTURE
+                </Text>
+
+                <View style={styles.dividerLine} />
+
+                <Text style={styles.govSubtitle}>
+                  National Department
                 </Text>
 
               </View>
@@ -212,22 +222,28 @@ export default function DSACDashboard() {
             </View>
 
 
-            <View style={styles.account}>
+            {/* Administrator area */}
 
-              <Text style={styles.role}>
+            <View style={styles.userPanel}>
+
+              <Text style={styles.userLabel}>
+                SYSTEM USER
+              </Text>
+
+              <Text style={styles.userRole}>
                 DSAC ADMINISTRATOR
               </Text>
 
-              <Text style={styles.email}>
-                {profile?.email ||
-                  'Administrator'}
+              <Text style={styles.userEmail}>
+                {profile?.email || 'Administrator'}
               </Text>
 
               <Pressable
                 onPress={logout}
+                style={styles.logoutButton}
               >
-                <Text style={styles.signOut}>
-                  Sign out
+                <Text style={styles.logoutText}>
+                  SIGN OUT
                 </Text>
               </Pressable>
 
@@ -236,42 +252,52 @@ export default function DSACDashboard() {
           </View>
 
 
-          {/* Brand */}
+          {/* ================================================= */}
+          {/* SYSTEM IDENTITY */}
+          {/* ================================================= */}
 
-          <View style={styles.brandBar}>
+          <View style={styles.systemBar}>
 
             <View>
 
-              <Text style={styles.brandName}>
+              <Text style={styles.systemName}>
                 CIVITRACK
               </Text>
 
-              <Text style={styles.brandSubtitle}>
-                Public Funding & Accountability Platform
+              <Text style={styles.systemDescription}>
+                Public Funding & Accountability Management System
               </Text>
 
             </View>
 
 
-            <View style={styles.activeSystem}>
+            <View style={styles.systemStatus}>
 
-              <View style={styles.activeDot} />
+              <View style={styles.statusIndicator} />
 
-              <Text style={styles.activeText}>
-                SYSTEM ACTIVE
-              </Text>
+              <View>
+                <Text style={styles.statusLabel}>
+                  SYSTEM STATUS
+                </Text>
+
+                <Text style={styles.statusValue}>
+                  OPERATIONAL
+                </Text>
+              </View>
 
             </View>
 
           </View>
 
 
-          {/* Navigation */}
+          {/* ================================================= */}
+          {/* NAVIGATION */}
+          {/* ================================================= */}
 
           <View style={styles.navigation}>
 
-            <View style={styles.activeNav}>
-              <Text style={styles.activeNavText}>
+            <View style={styles.navActive}>
+              <Text style={styles.navActiveText}>
                 Dashboard
               </Text>
             </View>
@@ -280,9 +306,7 @@ export default function DSACDashboard() {
             <Pressable
               style={styles.navItem}
               onPress={() =>
-                router.push(
-                  '/dsac/organisations'
-                )
+                router.push('/dsac/organisations')
               }
             >
               <Text style={styles.navText}>
@@ -294,13 +318,11 @@ export default function DSACDashboard() {
             <Pressable
               style={styles.navItem}
               onPress={() =>
-                router.push(
-                  '/dsac/funding-agreements'
-                )
+                router.push('/dsac/funding-agreements')
               }
             >
               <Text style={styles.navText}>
-                Funding
+                Funding Agreements
               </Text>
             </Pressable>
 
@@ -308,29 +330,23 @@ export default function DSACDashboard() {
             <Pressable
               style={styles.navItem}
               onPress={() =>
-                router.push(
-                  '/dsac/cases'
-                )
+                router.push('/dsac/cases')
               }
             >
               <Text style={styles.navText}>
-                Cases
+                Accountability Cases
               </Text>
             </Pressable>
 
 
-            <Pressable
-              style={styles.navItem}
-            >
+            <Pressable style={styles.navItem}>
               <Text style={styles.navText}>
                 Reports
               </Text>
             </Pressable>
 
 
-            <Pressable
-              style={styles.navItem}
-            >
+            <Pressable style={styles.navItem}>
               <Text style={styles.navText}>
                 Audit Log
               </Text>
@@ -339,23 +355,44 @@ export default function DSACDashboard() {
           </View>
 
 
-          {/* Main */}
+          {/* ================================================= */}
+          {/* MAIN CONTENT */}
+          {/* ================================================= */}
 
           <View style={styles.main}>
+
+            {/* Breadcrumb */}
+
+            <View style={styles.breadcrumb}>
+
+              <Text style={styles.breadcrumbText}>
+                DSAC ADMINISTRATION
+              </Text>
+
+              <Text style={styles.breadcrumbDivider}>
+                /
+              </Text>
+
+              <Text style={styles.breadcrumbCurrent}>
+                Dashboard
+              </Text>
+
+            </View>
+
 
             {/* Page heading */}
 
             <View style={styles.pageHeading}>
 
-              <View style={styles.headingText}>
+              <View style={styles.headingLeft}>
 
                 <Text style={styles.pageTitle}>
-                  DSAC Accountability Workspace
+                  DSAC Accountability Dashboard
                 </Text>
 
                 <Text style={styles.pageDescription}>
-                  Monitor public funding, organisational
-                  performance and accountability requirements.
+                  Central administration and oversight of public
+                  funding, organisations and accountability matters.
                 </Text>
 
               </View>
@@ -364,7 +401,7 @@ export default function DSACDashboard() {
               <View style={styles.periodBox}>
 
                 <Text style={styles.periodLabel}>
-                  CURRENT PERIOD
+                  FINANCIAL YEAR
                 </Text>
 
                 <Text style={styles.periodValue}>
@@ -376,313 +413,362 @@ export default function DSACDashboard() {
             </View>
 
 
-            {/* Accountability Overview */}
+            {/* ================================================= */}
+            {/* OVERVIEW */}
+            {/* ================================================= */}
 
-            <Text style={styles.sectionTitle}>
-              ACCOUNTABILITY OVERVIEW
-            </Text>
+            <View style={styles.sectionHeader}>
+
+              <View style={styles.sectionAccent} />
+
+              <View>
+                <Text style={styles.sectionTitle}>
+                  ACCOUNTABILITY OVERVIEW
+                </Text>
+
+                <Text style={styles.sectionSubtitle}>
+                  Current system records and outstanding activities
+                </Text>
+              </View>
+
+            </View>
 
 
             <View style={styles.stats}>
 
-              {/* Organisations */}
-
-              <View style={styles.statCard}>
-
-                <View style={styles.greenTop} />
-
-                <Text style={styles.statLabel}>
-                  ORGANISATIONS
-                </Text>
-
-                <Text style={styles.statNumber}>
-                  {loading
-                    ? '...'
-                    : stats.organisations}
-                </Text>
-
-                <Text style={styles.statDescription}>
-                  Registered NPOs and Public Entities
-                </Text>
-
-              </View>
+              <GovernmentStatCard
+                title="REGISTERED ORGANISATIONS"
+                value={
+                  loading
+                    ? '—'
+                    : stats.organisations
+                }
+                description="NPOs and public entities"
+                accent="#007A4D"
+              />
 
 
-              {/* Funding */}
-
-              <View style={styles.statCard}>
-
-                <View style={styles.goldTop} />
-
-                <Text style={styles.statLabel}>
-                  FUNDING AGREEMENTS
-                </Text>
-
-                <Text style={styles.statNumber}>
-                  {loading
-                    ? '...'
-                    : stats.fundingAgreements}
-                </Text>
-
-                <Text style={styles.statDescription}>
-                  Active funding agreements
-                </Text>
-
-              </View>
+              <GovernmentStatCard
+                title="FUNDING AGREEMENTS"
+                value={
+                  loading
+                    ? '—'
+                    : stats.fundingAgreements
+                }
+                description="Recorded funding agreements"
+                accent="#D4A72C"
+              />
 
 
-              {/* Cases */}
-
-              <View style={styles.statCard}>
-
-                <View style={styles.blackTop} />
-
-                <Text style={styles.statLabel}>
-                  ACCOUNTABILITY CASES
-                </Text>
-
-                <Text style={styles.statNumber}>
-                  {loading
-                    ? '...'
-                    : stats.accountabilityCases}
-                </Text>
-
-                <Text style={styles.statDescription}>
-                  Active accountability cases
-                </Text>
-
-              </View>
+              <GovernmentStatCard
+                title="ACCOUNTABILITY CASES"
+                value={
+                  loading
+                    ? '—'
+                    : stats.accountabilityCases
+                }
+                description="Active accountability matters"
+                accent="#1D2733"
+              />
 
 
-              {/* Reviews */}
-
-              <View style={styles.statCard}>
-
-                <View style={styles.redTop} />
-
-                <Text style={styles.statLabel}>
-                  PENDING REVIEWS
-                </Text>
-
-                <Text style={styles.statNumber}>
-                  {loading
-                    ? '...'
-                    : stats.pendingReviews}
-                </Text>
-
-                <Text style={styles.statDescription}>
-                  Cases awaiting review
-                </Text>
-
-              </View>
+              <GovernmentStatCard
+                title="PENDING REVIEWS"
+                value={
+                  loading
+                    ? '—'
+                    : stats.pendingReviews
+                }
+                description="Items awaiting official review"
+                accent="#C62828"
+              />
 
             </View>
 
 
-            {/* Quick Actions */}
+            {/* ================================================= */}
+            {/* QUICK ACTIONS */}
+            {/* ================================================= */}
 
-            <Text style={styles.sectionTitle}>
-              QUICK ACTIONS
-            </Text>
+            <View style={styles.sectionHeader}>
+
+              <View style={styles.sectionAccent} />
+
+              <View>
+                <Text style={styles.sectionTitle}>
+                  ADMINISTRATIVE ACTIONS
+                </Text>
+
+                <Text style={styles.sectionSubtitle}>
+                  Common departmental administration functions
+                </Text>
+              </View>
+
+            </View>
 
 
             <View style={styles.actions}>
 
-              <Pressable
-                style={styles.actionCard}
+              <GovernmentAction
+                number="01"
+                title="Manage Organisations"
+                description="Register and maintain NPO and public entity records."
+                accent="#007A4D"
                 onPress={() =>
-                  router.push(
-                    '/dsac/organisations'
-                  )
+                  router.push('/dsac/organisations')
                 }
-              >
-
-                <View style={styles.actionIconGreen}>
-                  <Text style={styles.actionIconText}>
-                    +
-                  </Text>
-                </View>
-
-                <View style={styles.actionContent}>
-
-                  <Text style={styles.actionTitle}>
-                    Create Organisation
-                  </Text>
-
-                  <Text style={styles.actionDescription}>
-                    Register an NPO or Public Entity and
-                    provision its administrator.
-                  </Text>
-
-                </View>
-
-                <Text style={styles.arrow}>
-                  ›
-                </Text>
-
-              </Pressable>
+              />
 
 
-              <Pressable
-                style={styles.actionCard}
+              <GovernmentAction
+                number="02"
+                title="Funding Agreements"
+                description="Record allocations, agreements and accountability requirements."
+                accent="#D4A72C"
                 onPress={() =>
-                  router.push(
-                    '/dsac/funding-agreements'
-                  )
+                  router.push('/dsac/funding-agreements')
                 }
-              >
-
-                <View style={styles.actionIconGold}>
-                  <Text style={styles.actionIconText}>
-                    R
-                  </Text>
-                </View>
-
-                <View style={styles.actionContent}>
-
-                  <Text style={styles.actionTitle}>
-                    Create Funding Agreement
-                  </Text>
-
-                  <Text style={styles.actionDescription}>
-                    Record funding allocation, agreement period
-                    and accountability requirements.
-                  </Text>
-
-                </View>
-
-                <Text style={styles.arrow}>
-                  ›
-                </Text>
-
-              </Pressable>
+              />
 
 
-              <Pressable
-                style={styles.actionCard}
+              <GovernmentAction
+                number="03"
+                title="Accountability Cases"
+                description="Create, assign and monitor accountability cases."
+                accent="#1D2733"
                 onPress={() =>
-                  router.push(
-                    '/dsac/cases'
-                  )
+                  router.push('/dsac/cases')
                 }
-              >
-
-                <View style={styles.actionIconBlack}>
-                  <Text style={styles.actionIconText}>
-                    C
-                  </Text>
-                </View>
-
-                <View style={styles.actionContent}>
-
-                  <Text style={styles.actionTitle}>
-                    Create Accountability Case
-                  </Text>
-
-                  <Text style={styles.actionDescription}>
-                    Assign an accountability case and activate
-                    an organisation workspace.
-                  </Text>
-
-                </View>
-
-                <Text style={styles.arrow}>
-                  ›
-                </Text>
-
-              </Pressable>
+              />
 
             </View>
 
 
-            {/* Workflow */}
+            {/* ================================================= */}
+            {/* WORKFLOW */}
+            {/* ================================================= */}
 
-            <Text style={styles.sectionTitle}>
-              CIVITRACK WORKFLOW
-            </Text>
+            <View style={styles.sectionHeader}>
+
+              <View style={styles.sectionAccent} />
+
+              <View>
+                <Text style={styles.sectionTitle}>
+                  CIVITRACK GOVERNANCE WORKFLOW
+                </Text>
+
+                <Text style={styles.sectionSubtitle}>
+                  Standard administrative process
+                </Text>
+              </View>
+
+            </View>
 
 
             <View style={styles.workflow}>
 
               <WorkflowStep
-                number="1"
+                number="01"
                 title="Organisation"
-                description="Register and provision access"
+                description="Register organisation"
               />
 
-              <Text style={styles.workflowArrow}>
-                →
-              </Text>
+              <WorkflowLine />
 
               <WorkflowStep
-                number="2"
+                number="02"
                 title="Funding"
-                description="Create funding agreement"
+                description="Create agreement"
               />
 
-              <Text style={styles.workflowArrow}>
-                →
-              </Text>
+              <WorkflowLine />
 
               <WorkflowStep
-                number="3"
+                number="03"
                 title="Case"
-                description="Assign accountability case"
+                description="Assign case"
               />
 
-              <Text style={styles.workflowArrow}>
-                →
-              </Text>
+              <WorkflowLine />
 
               <WorkflowStep
-                number="4"
+                number="04"
                 title="Workspace"
-                description="Manage evidence and targets"
+                description="Manage evidence"
               />
 
-              <Text style={styles.workflowArrow}>
-                →
-              </Text>
+              <WorkflowLine />
 
               <WorkflowStep
-                number="5"
+                number="05"
                 title="Review"
                 description="Review and approve"
               />
 
             </View>
 
+
+            {/* ================================================= */}
+            {/* ADMINISTRATIVE NOTICE */}
+            {/* ================================================= */}
+
+            <View style={styles.notice}>
+
+              <View style={styles.noticeBar} />
+
+              <View style={styles.noticeContent}>
+
+                <Text style={styles.noticeTitle}>
+                  ADMINISTRATIVE INFORMATION
+                </Text>
+
+                <Text style={styles.noticeText}>
+                  All records and transactions within CIVITRACK
+                  should be maintained in accordance with applicable
+                  departmental policies, financial controls and
+                  records-management requirements.
+                </Text>
+
+              </View>
+
+            </View>
+
           </View>
 
 
-          {/* Footer */}
+          {/* ================================================= */}
+          {/* FOOTER */}
+          {/* ================================================= */}
 
           <View style={styles.footer}>
 
-            <Text style={styles.footerTitle}>
-              CIVITRACK
-            </Text>
+            <View style={styles.footerInner}>
 
-            <Text style={styles.footerText}>
-              Public Funding & Accountability Platform
-            </Text>
+              <Text style={styles.footerRepublic}>
+                REPUBLIC OF SOUTH AFRICA
+              </Text>
 
-            <Text style={styles.footerText}>
-              Department of Sport, Arts and Culture
-            </Text>
+              <Text style={styles.footerDepartment}>
+                Department of Sport, Arts and Culture
+              </Text>
 
-            <Text style={styles.footerCopyright}>
-              © 2026 Republic of South Africa
-            </Text>
+              <Text style={styles.footerSystem}>
+                CIVITRACK — Public Funding & Accountability
+                Management System
+              </Text>
+
+              <View style={styles.footerLine} />
+
+              <Text style={styles.footerCopyright}>
+                © 2026 Department of Sport, Arts and Culture
+              </Text>
+
+            </View>
 
           </View>
 
         </ScrollView>
+
       </SafeAreaView>
     </ProtectedRoute>
   );
 }
 
+
+/* ========================================================= */
+/* GOVERNMENT STAT CARD */
+/* ========================================================= */
+
+function GovernmentStatCard({
+  title,
+  value,
+  description,
+  accent,
+}) {
+  return (
+    <View style={styles.statCard}>
+
+      <View
+        style={[
+          styles.statAccent,
+          { backgroundColor: accent },
+        ]}
+      />
+
+      <Text style={styles.statLabel}>
+        {title}
+      </Text>
+
+      <Text style={styles.statNumber}>
+        {value}
+      </Text>
+
+      <Text style={styles.statDescription}>
+        {description}
+      </Text>
+
+      <View style={styles.statBottomLine} />
+
+    </View>
+  );
+}
+
+
+/* ========================================================= */
+/* GOVERNMENT ACTION */
+/* ========================================================= */
+
+function GovernmentAction({
+  number,
+  title,
+  description,
+  accent,
+  onPress,
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.actionCard,
+        pressed && styles.actionCardPressed,
+      ]}
+      onPress={onPress}
+    >
+
+      <View
+        style={[
+          styles.actionNumber,
+          { backgroundColor: accent },
+        ]}
+      >
+        <Text style={styles.actionNumberText}>
+          {number}
+        </Text>
+      </View>
+
+      <View style={styles.actionContent}>
+
+        <Text style={styles.actionTitle}>
+          {title}
+        </Text>
+
+        <Text style={styles.actionDescription}>
+          {description}
+        </Text>
+
+      </View>
+
+      <Text style={styles.actionArrow}>
+        →
+      </Text>
+
+    </Pressable>
+  );
+}
+
+
+/* ========================================================= */
+/* WORKFLOW STEP */
+/* ========================================================= */
 
 function WorkflowStep({
   number,
@@ -713,218 +799,334 @@ function WorkflowStep({
 }
 
 
+/* ========================================================= */
+/* WORKFLOW LINE */
+/* ========================================================= */
+
+function WorkflowLine() {
+  return (
+    <View style={styles.workflowLineContainer}>
+
+      <View style={styles.workflowLine} />
+
+    </View>
+  );
+}
+
+
+/* ========================================================= */
+/* STYLES */
+/* ========================================================= */
+
 const styles = StyleSheet.create({
 
   safeArea: {
     flex: 1,
-    backgroundColor: '#F3F3F0',
-  },
-
-  loadingScreen: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F3F3F0',
-  },
-
-  loadingText: {
-    marginTop: 12,
-    color: '#555555',
+    backgroundColor: '#F2F4F5',
   },
 
   container: {
     flex: 1,
+    backgroundColor: '#F2F4F5',
   },
 
   content: {
     flexGrow: 1,
   },
 
+
+  /* --------------------------------------------- */
+  /* SA FLAG STRIP */
+  /* --------------------------------------------- */
+
   flagStrip: {
-    height: 7,
+    height: 6,
     flexDirection: 'row',
   },
 
-  blackStrip: {
+  flagBlack: {
     flex: 1,
-    backgroundColor: '#111111',
+    backgroundColor: '#000000',
   },
 
-  goldStrip: {
+  flagGold: {
     flex: 1,
-    backgroundColor: '#FFB81C',
+    backgroundColor: '#FFB612',
   },
 
-  greenStrip: {
+  flagGreen: {
     flex: 2,
     backgroundColor: '#007A4D',
   },
 
-  blueStrip: {
+  flagBlue: {
     flex: 1,
     backgroundColor: '#001489',
   },
 
-  redStrip: {
+  flagRed: {
     flex: 1,
     backgroundColor: '#DE3831',
   },
 
-  header: {
-    backgroundColor: '#111111',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    minHeight: 85,
+
+  /* --------------------------------------------- */
+  /* GOVERNMENT HEADER */
+  /* --------------------------------------------- */
+
+  govHeader: {
+    backgroundColor: '#18202A',
+    minHeight: 112,
+    paddingHorizontal: 34,
+    paddingVertical: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
 
-  identity: {
+  govIdentity: {
     flexDirection: 'row',
     alignItems: 'center',
   },
 
-  emblem: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#007A4D',
-    borderWidth: 3,
-    borderColor: '#FFB81C',
+  coatOfArmsContainer: {
+    width: 74,
+    height: 74,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 18,
   },
 
-  emblemText: {
-    color: '#FFFFFF',
-    fontWeight: '900',
+  coatOfArms: {
+    width: 68,
+    height: 68,
+  },
+
+  govText: {
+    justifyContent: 'center',
   },
 
   republic: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 1.3,
   },
 
   department: {
-    color: '#CCCCCC',
-    fontSize: 13,
-    marginTop: 4,
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '700',
+    marginTop: 5,
   },
 
-  account: {
+  dividerLine: {
+    width: 100,
+    height: 2,
+    backgroundColor: '#D4A72C',
+    marginTop: 9,
+    marginBottom: 6,
+  },
+
+  govSubtitle: {
+    color: '#B8C0C8',
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.7,
+  },
+
+
+  /* --------------------------------------------- */
+  /* USER PANEL */
+  /* --------------------------------------------- */
+
+  userPanel: {
     alignItems: 'flex-end',
   },
 
-  role: {
-    color: '#FFB81C',
-    fontSize: 9,
-    fontWeight: '900',
+  userLabel: {
+    color: '#9FA8B1',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
 
-  email: {
-    color: '#CCCCCC',
+  userRole: {
+    color: '#D4A72C',
     fontSize: 10,
+    fontWeight: '900',
     marginTop: 4,
+    letterSpacing: 0.6,
   },
 
-  signOut: {
+  userEmail: {
+    color: '#D7DCE0',
+    fontSize: 10,
+    marginTop: 3,
+  },
+
+  logoutButton: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#68737E',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+  },
+
+  logoutText: {
     color: '#FFFFFF',
-    fontSize: 11,
-    marginTop: 5,
-    textDecorationLine: 'underline',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
 
-  brandBar: {
+
+  /* --------------------------------------------- */
+  /* SYSTEM BAR */
+  /* --------------------------------------------- */
+
+  systemBar: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 30,
-    paddingVertical: 20,
+    paddingHorizontal: 34,
+    paddingVertical: 19,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#DDDDDD',
+    borderBottomColor: '#D9DDE0',
   },
 
-  brandName: {
-    fontSize: 27,
+  systemName: {
+    color: '#18202A',
+    fontSize: 24,
     fontWeight: '900',
-    letterSpacing: 2,
-    color: '#111111',
+    letterSpacing: 2.2,
   },
 
-  brandSubtitle: {
+  systemDescription: {
+    color: '#65707A',
+    fontSize: 10,
     marginTop: 3,
-    color: '#007A4D',
-    fontSize: 12,
-    fontWeight: '700',
   },
 
-  activeSystem: {
+  systemStatus: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFF7F3',
-    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#D9E4DD',
+    backgroundColor: '#F7FAF8',
+    paddingHorizontal: 13,
     paddingVertical: 8,
   },
 
-  activeDot: {
+  statusIndicator: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#007A4D',
-    marginRight: 7,
+    marginRight: 9,
   },
 
-  activeText: {
+  statusLabel: {
+    color: '#758078',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+
+  statusValue: {
     color: '#007A4D',
     fontSize: 9,
     fontWeight: '900',
+    marginTop: 2,
   },
+
+
+  /* --------------------------------------------- */
+  /* NAVIGATION */
+  /* --------------------------------------------- */
 
   navigation: {
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#DDDDDD',
+    borderBottomColor: '#D2D7DA',
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 20,
-  },
-
-  activeNav: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 4,
-    borderBottomColor: '#FFB81C',
-  },
-
-  activeNavText: {
-    color: '#111111',
-    fontSize: 12,
-    fontWeight: '900',
+    paddingHorizontal: 25,
   },
 
   navItem: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 17,
     paddingVertical: 14,
+    justifyContent: 'center',
   },
 
   navText: {
-    color: '#555555',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#4E5963',
+    fontSize: 10,
+    fontWeight: '700',
   },
+
+  navActive: {
+    paddingHorizontal: 17,
+    paddingVertical: 14,
+    borderBottomWidth: 3,
+    borderBottomColor: '#007A4D',
+    backgroundColor: '#F7F9F8',
+  },
+
+  navActiveText: {
+    color: '#18202A',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+
+  /* --------------------------------------------- */
+  /* MAIN */
+  /* --------------------------------------------- */
 
   main: {
     width: '100%',
-    maxWidth: 1300,
+    maxWidth: 1320,
     alignSelf: 'center',
-    paddingHorizontal: 30,
-    paddingVertical: 35,
+    paddingHorizontal: 34,
+    paddingVertical: 28,
   },
+
+
+  /* --------------------------------------------- */
+  /* BREADCRUMB */
+  /* --------------------------------------------- */
+
+  breadcrumb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  breadcrumbText: {
+    color: '#78838C',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.7,
+  },
+
+  breadcrumbDivider: {
+    color: '#B4BBC0',
+    marginHorizontal: 7,
+    fontSize: 10,
+  },
+
+  breadcrumbCurrent: {
+    color: '#18202A',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+
+
+  /* --------------------------------------------- */
+  /* PAGE HEADING */
+  /* --------------------------------------------- */
 
   pageHeading: {
     flexDirection: 'row',
@@ -933,174 +1135,183 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
 
-  headingText: {
+  headingLeft: {
     flex: 1,
   },
 
   pageTitle: {
-    fontSize: 26,
+    color: '#18202A',
+    fontSize: 25,
     fontWeight: '900',
-    color: '#171717',
   },
 
   pageDescription: {
+    color: '#626D76',
+    fontSize: 11,
+    lineHeight: 17,
     marginTop: 7,
-    color: '#666666',
-    fontSize: 13,
-    maxWidth: 750,
+    maxWidth: 760,
   },
 
   periodBox: {
     backgroundColor: '#FFFFFF',
     borderLeftWidth: 4,
-    borderLeftColor: '#FFB81C',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
+    borderLeftColor: '#D4A72C',
+    borderWidth: 1,
+    borderColor: '#D9DDE0',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    minWidth: 150,
   },
 
   periodLabel: {
-    color: '#777777',
-    fontSize: 9,
+    color: '#7A838A',
+    fontSize: 7,
     fontWeight: '900',
+    letterSpacing: 0.8,
   },
 
   periodValue: {
-    color: '#111111',
+    color: '#18202A',
     fontSize: 15,
     fontWeight: '900',
-    marginTop: 3,
+    marginTop: 4,
+  },
+
+
+  /* --------------------------------------------- */
+  /* SECTION */
+  /* --------------------------------------------- */
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 13,
+    marginTop: 4,
+  },
+
+  sectionAccent: {
+    width: 4,
+    height: 28,
+    backgroundColor: '#007A4D',
+    marginRight: 10,
   },
 
   sectionTitle: {
-    color: '#333333',
-    fontSize: 11,
+    color: '#27313A',
+    fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 1,
-    marginBottom: 12,
+    letterSpacing: 0.8,
   },
+
+  sectionSubtitle: {
+    color: '#7A848C',
+    fontSize: 9,
+    marginTop: 3,
+  },
+
+
+  /* --------------------------------------------- */
+  /* STATISTICS */
+  /* --------------------------------------------- */
 
   stats: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: -6,
-    marginBottom: 30,
+    marginBottom: 31,
   },
 
   statCard: {
     flex: 1,
-    minWidth: 200,
-    minHeight: 140,
+    minWidth: 210,
+    minHeight: 145,
     margin: 6,
-    padding: 20,
+    padding: 19,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#DDDDDD',
+    borderColor: '#D7DCDF',
+    position: 'relative',
     overflow: 'hidden',
   },
 
-  greenTop: {
-    height: 5,
-    backgroundColor: '#007A4D',
+  statAccent: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-  },
-
-  goldTop: {
-    height: 5,
-    backgroundColor: '#FFB81C',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-
-  blackTop: {
-    height: 5,
-    backgroundColor: '#111111',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-
-  redTop: {
-    height: 5,
-    backgroundColor: '#DE3831',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    height: 4,
   },
 
   statLabel: {
-    marginTop: 5,
-    color: '#666666',
-    fontSize: 9,
+    color: '#68737C',
+    fontSize: 8,
     fontWeight: '900',
-    letterSpacing: 0.7,
+    letterSpacing: 0.6,
+    marginTop: 3,
   },
 
   statNumber: {
-    marginTop: 12,
-    color: '#111111',
+    color: '#18202A',
     fontSize: 34,
     fontWeight: '900',
+    marginTop: 13,
   },
 
   statDescription: {
-    marginTop: 4,
-    color: '#777777',
-    fontSize: 10,
+    color: '#737D85',
+    fontSize: 9,
+    marginTop: 3,
   },
+
+  statBottomLine: {
+    position: 'absolute',
+    bottom: 0,
+    left: 19,
+    right: 19,
+    height: 1,
+    backgroundColor: '#E7E9EA',
+  },
+
+
+  /* --------------------------------------------- */
+  /* ACTIONS */
+  /* --------------------------------------------- */
 
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     marginHorizontal: -6,
-    marginBottom: 30,
+    marginBottom: 31,
   },
 
   actionCard: {
     flex: 1,
     minWidth: 280,
+    minHeight: 104,
     margin: 6,
-    padding: 20,
+    padding: 17,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#DDDDDD',
+    borderColor: '#D7DCDF',
     flexDirection: 'row',
     alignItems: 'center',
   },
 
-  actionIconGreen: {
-    width: 44,
-    height: 44,
-    backgroundColor: '#007A4D',
+  actionCardPressed: {
+    backgroundColor: '#F5F7F7',
+  },
+
+  actionNumber: {
+    width: 42,
+    height: 42,
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  actionIconGold: {
-    width: 44,
-    height: 44,
-    backgroundColor: '#FFB81C',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  actionIconBlack: {
-    width: 44,
-    height: 44,
-    backgroundColor: '#111111',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  actionIconText: {
+  actionNumberText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 10,
     fontWeight: '900',
   },
 
@@ -1110,100 +1321,177 @@ const styles = StyleSheet.create({
   },
 
   actionTitle: {
-    color: '#171717',
-    fontSize: 13,
+    color: '#202A32',
+    fontSize: 12,
     fontWeight: '900',
   },
 
   actionDescription: {
-    color: '#777777',
-    fontSize: 10,
-    lineHeight: 16,
+    color: '#737D85',
+    fontSize: 9,
+    lineHeight: 15,
     marginTop: 5,
   },
 
-  arrow: {
+  actionArrow: {
     color: '#007A4D',
-    fontSize: 26,
+    fontSize: 20,
+    fontWeight: '900',
     marginLeft: 8,
   },
+
+
+  /* --------------------------------------------- */
+  /* WORKFLOW */
+  /* --------------------------------------------- */
 
   workflow: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#DDDDDD',
-    padding: 20,
+    borderColor: '#D7DCDF',
+    paddingHorizontal: 22,
+    paddingVertical: 24,
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
+    marginBottom: 25,
   },
 
   workflowStep: {
     flex: 1,
-    minWidth: 150,
+    minWidth: 125,
     alignItems: 'center',
   },
 
   workflowCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#007A4D',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#18202A',
+    borderWidth: 3,
+    borderColor: '#D4A72C',
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   workflowNumber: {
     color: '#FFFFFF',
+    fontSize: 9,
     fontWeight: '900',
   },
 
   workflowTitle: {
-    marginTop: 8,
-    color: '#222222',
-    fontSize: 12,
+    color: '#263039',
+    fontSize: 11,
     fontWeight: '900',
+    marginTop: 8,
   },
 
   workflowDescription: {
-    marginTop: 4,
-    color: '#777777',
-    fontSize: 9,
+    color: '#7A848C',
+    fontSize: 8,
     textAlign: 'center',
+    marginTop: 4,
   },
 
-  workflowArrow: {
-    color: '#FFB81C',
-    fontSize: 24,
-    fontWeight: '900',
-    paddingHorizontal: 5,
-  },
-
-  footer: {
-    backgroundColor: '#111111',
-    paddingVertical: 28,
+  workflowLineContainer: {
+    flex: 0.4,
+    minWidth: 25,
     alignItems: 'center',
-    borderTopWidth: 5,
-    borderTopColor: '#007A4D',
   },
 
-  footerTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
+  workflowLine: {
+    width: '100%',
+    height: 1,
+    backgroundColor: '#D4A72C',
+  },
+
+
+  /* --------------------------------------------- */
+  /* NOTICE */
+  /* --------------------------------------------- */
+
+  notice: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D7DCDF',
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+
+  noticeBar: {
+    width: 5,
+    backgroundColor: '#007A4D',
+  },
+
+  noticeContent: {
+    padding: 17,
+    flex: 1,
+  },
+
+  noticeTitle: {
+    color: '#27313A',
+    fontSize: 9,
     fontWeight: '900',
-    letterSpacing: 1.5,
+    letterSpacing: 0.7,
   },
 
-  footerText: {
-    color: '#AAAAAA',
-    fontSize: 10,
+  noticeText: {
+    color: '#69747D',
+    fontSize: 9,
+    lineHeight: 15,
     marginTop: 5,
   },
 
-  footerCopyright: {
-    color: '#666666',
+
+  /* --------------------------------------------- */
+  /* FOOTER */
+  /* --------------------------------------------- */
+
+  footer: {
+    backgroundColor: '#18202A',
+    borderTopWidth: 4,
+    borderTopColor: '#007A4D',
+    paddingVertical: 30,
+    alignItems: 'center',
+  },
+
+  footerInner: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+
+  footerRepublic: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  footerDepartment: {
+    color: '#D4A72C',
+    fontSize: 10,
+    fontWeight: '800',
+    marginTop: 5,
+  },
+
+  footerSystem: {
+    color: '#AAB2B9',
     fontSize: 9,
-    marginTop: 12,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+
+  footerLine: {
+    width: 80,
+    height: 1,
+    backgroundColor: '#53606B',
+    marginVertical: 13,
+  },
+
+  footerCopyright: {
+    color: '#7F8992',
+    fontSize: 8,
   },
 
 });
