@@ -1,288 +1,256 @@
+import React, {
+  useCallback,
+  useState,
+} from "react";
+
 import {
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
-} from 'react-native';
+} from "react-native";
 
-import { router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 
-export default function DSACDashboard() {
-  return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.brand}>GOVTECH</Text>
+import ProtectedRoute from "../../src/components/ProtectedRoute";
+import DashboardHeader from "../../src/components/dashboard/DashboardHeader";
+import StatCard from "../../src/components/dashboard/StatCard";
+import EmptyState from "../../src/components/EmptyState";
 
-          <Text style={styles.title}>
-            DSAC Accountability
-          </Text>
+import { useAuth } from "../../src/hooks/useAuth";
+import { ROLES } from "../../src/constants/roles";
+import { supabase } from "../../src/services/supabase";
 
-          <Text style={styles.subtitle}>
-            Administration Dashboard
-          </Text>
-        </View>
+import {
+  COLORS,
+  SPACING,
+} from "../../src/constants/theme";
 
-        <View style={styles.userBadge}>
-          <Text style={styles.userBadgeText}>DA</Text>
-        </View>
-      </View>
+export default function DsacDashboard() {
+  const { profile } = useAuth();
 
-      <View style={styles.welcomeCard}>
-        <Text style={styles.welcomeTitle}>
-          Welcome, DSAC Administrator
-        </Text>
+  const [stats, setStats] = useState({
+    organisations: 0,
+    activeCases: 0,
+    pendingReviews: 0,
+  });
 
-        <Text style={styles.welcomeText}>
-          Manage organisations, funding agreements,
-          accountability cases and reviews from one workspace.
-        </Text>
-      </View>
+  const [hasOrganisations, setHasOrganisations] =
+    useState(false);
 
-      <Text style={styles.sectionTitle}>
-        Overview
-      </Text>
+  const [refreshing, setRefreshing] =
+    useState(false);
 
-      <View style={styles.grid}>
-        <DashboardCard
-          title="Organisations"
-          value="0"
-          description="Registered organisations"
-        />
+  const [loading, setLoading] =
+    useState(true);
 
-        <DashboardCard
-          title="Funding Agreements"
-          value="0"
-          description="Active agreements"
-        />
+  const loadDashboard = async () => {
+    try {
+      setLoading(true);
 
-        <DashboardCard
-          title="Accountability Cases"
-          value="0"
-          description="Cases being tracked"
-        />
+      const [
+        organisationsResult,
+        casesResult,
+        reviewsResult,
+      ] = await Promise.all([
+        supabase
+          .from("organisations")
+          .select("id", {
+            count: "exact",
+            head: true,
+          }),
 
-        <DashboardCard
-          title="Pending Reviews"
-          value="0"
-          description="Cases awaiting review"
-        />
-      </View>
+        supabase
+          .from("accountability_cases")
+          .select("id", {
+            count: "exact",
+            head: true,
+          })
+          .in("status", [
+            "open",
+            "in_progress",
+            "submitted",
+          ]),
 
-      <Text style={styles.sectionTitle}>
-        Quick Actions
-      </Text>
+        supabase
+          .from("approvals")
+          .select("id", {
+            count: "exact",
+            head: true,
+          })
+          .eq("status", "pending"),
+      ]);
 
-      <View style={styles.actionCard}>
-        <Text style={styles.actionTitle}>
-          Create Organisation
-        </Text>
+      if (organisationsResult.error) {
+        throw organisationsResult.error;
+      }
 
-        <Text style={styles.actionDescription}>
-          Register an NPO or Public Entity and provision its
-          primary administrator.
-        </Text>
-      </View>
+      if (casesResult.error) {
+        throw casesResult.error;
+      }
 
-      <View style={styles.actionCard}>
-        <Text style={styles.actionTitle}>
-          Create Funding Agreement
-        </Text>
+      if (reviewsResult.error) {
+        throw reviewsResult.error;
+      }
 
-        <Text style={styles.actionDescription}>
-          Record funding allocation, objectives, targets and
-          reporting requirements.
-        </Text>
-      </View>
+      const organisationCount =
+        organisationsResult.count ?? 0;
 
-      <View style={styles.actionCard}>
-        <Text style={styles.actionTitle}>
-          Create Accountability Case
-        </Text>
+      const activeCaseCount =
+        casesResult.count ?? 0;
 
-        <Text style={styles.actionDescription}>
-          Assign an accountability case to an organisation
-          and activate its workspace.
-        </Text>
-      </View>
+      const pendingReviewCount =
+        reviewsResult.count ?? 0;
 
-      <View style={styles.infoCard}>
-        <Text style={styles.infoTitle}>
-          MVP Status
-        </Text>
+      setStats({
+        organisations: organisationCount,
+        activeCases: activeCaseCount,
+        pendingReviews: pendingReviewCount,
+      });
 
-        <Text style={styles.infoText}>
-          The dashboard foundation is ready. Supabase
-          authentication and the DSAC database will be
-          connected next.
-        </Text>
-      </View>
-    </ScrollView>
+      setHasOrganisations(
+        organisationCount > 0
+      );
+    } catch (error) {
+      console.error(
+        "DSAC dashboard loading error:",
+        error
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refresh = async () => {
+    setRefreshing(true);
+
+    try {
+      await loadDashboard();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDashboard();
+    }, [])
   );
-}
 
-function DashboardCard({
-  title,
-  value,
-  description,
-}) {
   return (
-    <View style={styles.statCard}>
-      <Text style={styles.statTitle}>{title}</Text>
+    <ProtectedRoute
+      allowedRoles={[ROLES.DSAC_ADMIN]}
+    >
+      <View style={styles.container}>
+        <DashboardHeader
+          title="Dashboard"
+          subtitle="Accountability Workspace"
+          userName={profile?.full_name}
+        />
 
-      <Text style={styles.statValue}>{value}</Text>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refresh}
+            />
+          }
+        >
+          <Text style={styles.sectionTitle}>
+            Overview
+          </Text>
 
-      <Text style={styles.statDescription}>
-        {description}
-      </Text>
-    </View>
+          <View style={styles.statsRow}>
+            <StatCard
+              title="Organisations"
+              value={
+                loading
+                  ? "..."
+                  : stats.organisations
+              }
+              subtitle="Registered organisations"
+            />
+
+            <StatCard
+              title="Active Cases"
+              value={
+                loading
+                  ? "..."
+                  : stats.activeCases
+              }
+              subtitle="Current accountability cases"
+            />
+
+            <StatCard
+              title="Pending Reviews"
+              value={
+                loading
+                  ? "..."
+                  : stats.pendingReviews
+              }
+              subtitle="Awaiting review"
+            />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Organisations
+            </Text>
+
+            {!loading && !hasOrganisations ? (
+              <EmptyState
+                title="No organisations yet"
+                message="Organisations created by DSAC administrators will appear here."
+              />
+            ) : null}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Accountability Cases
+            </Text>
+
+            {!loading &&
+            stats.activeCases === 0 ? (
+              <EmptyState
+                title="No active cases"
+                message="Active accountability cases will appear here once they are created."
+              />
+            ) : null}
+          </View>
+        </ScrollView>
+      </View>
+    </ProtectedRoute>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
-    padding: 20,
+    backgroundColor: COLORS.background,
   },
 
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-
-  brand: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#0B3D91',
-    letterSpacing: 1,
-  },
-
-  title: {
-    marginTop: 4,
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#172033',
-  },
-
-  subtitle: {
-    marginTop: 4,
-    fontSize: 14,
-    color: '#667085',
-  },
-
-  userBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#0B3D91',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  userBadgeText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-
-  welcomeCard: {
-    backgroundColor: '#0B3D91',
-    borderRadius: 16,
-    padding: 22,
-    marginBottom: 28,
-  },
-
-  welcomeTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-  },
-
-  welcomeText: {
-    color: '#E8F0FE',
-    marginTop: 8,
-    lineHeight: 21,
+  content: {
+    padding: SPACING.lg,
+    paddingBottom: SPACING.xxl,
   },
 
   sectionTitle: {
-    fontSize: 19,
-    fontWeight: '700',
-    color: '#172033',
-    marginBottom: 14,
+    fontSize: 18,
+    fontWeight: "700",
+    color: COLORS.text,
+    marginBottom: SPACING.md,
   },
 
-  grid: {
-    gap: 12,
-    marginBottom: 28,
+  statsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: SPACING.md,
   },
 
-  statCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    padding: 18,
-  },
-
-  statTitle: {
-    color: '#667085',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-
-  statValue: {
-    marginTop: 8,
-    fontSize: 30,
-    fontWeight: '800',
-    color: '#172033',
-  },
-
-  statDescription: {
-    marginTop: 4,
-    color: '#98A2B3',
-    fontSize: 13,
-  },
-
-  actionCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#E4E7EC',
-    padding: 18,
-    marginBottom: 12,
-  },
-
-  actionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0B3D91',
-  },
-
-  actionDescription: {
-    marginTop: 6,
-    color: '#667085',
-    lineHeight: 20,
-  },
-
-  infoCard: {
-    marginTop: 10,
-    marginBottom: 40,
-    padding: 18,
-    borderRadius: 14,
-    backgroundColor: '#E8F0FE',
-  },
-
-  infoTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0B3D91',
-  },
-
-  infoText: {
-    marginTop: 6,
-    color: '#344054',
-    lineHeight: 20,
+  section: {
+    marginTop: SPACING.xl,
   },
 });
