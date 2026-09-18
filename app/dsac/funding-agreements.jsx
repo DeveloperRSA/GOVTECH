@@ -141,13 +141,36 @@ export default function FundingAgreementsScreen() {
           </View>
 
 
-          <View style={styles.systemStatus}>
+          {/* TOP RIGHT ACTIONS */}
 
-            <View style={styles.statusDot} />
+          <View style={styles.systemActions}>
 
-            <Text style={styles.statusText}>
-              SECURE SYSTEM
-            </Text>
+            <Pressable
+              onPress={() =>
+                router.replace('/dsac/dashboard')
+              }
+              style={({ pressed }) => [
+                styles.dashboardButton,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+
+              <Text style={styles.dashboardButtonText}>
+                ← Dashboard
+              </Text>
+
+            </Pressable>
+
+
+            <View style={styles.systemStatus}>
+
+              <View style={styles.statusDot} />
+
+              <Text style={styles.statusText}>
+                SECURE SYSTEM
+              </Text>
+
+            </View>
 
           </View>
 
@@ -277,11 +300,13 @@ export default function FundingAgreementsScreen() {
 
 
                 <View style={styles.formStatus}>
+
                   <View style={styles.formStatusDot} />
 
                   <Text style={styles.formStatusText}>
                     DRAFT
                   </Text>
+
                 </View>
 
               </View>
@@ -636,9 +661,11 @@ export default function FundingAgreementsScreen() {
           <View style={styles.notice}>
 
             <View style={styles.noticeIcon}>
+
               <Text style={styles.noticeIconText}>
                 i
               </Text>
+
             </View>
 
 
@@ -854,6 +881,26 @@ const styles = StyleSheet.create({
     color: '#707A82',
     fontSize: 9,
     marginTop: 3,
+  },
+
+  systemActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+
+  dashboardButton: {
+    borderWidth: 1,
+    borderColor: '#D4A72C',
+    backgroundColor: '#FFF9E8',
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
+
+  dashboardButtonText: {
+    color: '#8A6800',
+    fontSize: 10,
+    fontWeight: '900',
   },
 
   systemStatus: {
