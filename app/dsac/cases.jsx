@@ -40,8 +40,7 @@ export default function CasesScreen() {
   const [description, setDescription] = useState('');
 
   const [organisations, setOrganisations] = useState([]);
-  const [fundingAgreements, setFundingAgreements] =
-    useState([]);
+  const [fundingAgreements, setFundingAgreements] = useState([]);
   const [cases, setCases] = useState([]);
 
   const [selectedOrganisation, setSelectedOrganisation] =
@@ -60,6 +59,17 @@ export default function CasesScreen() {
   const [showFundingList, setShowFundingList] =
     useState(false);
 
+  // --------------------------------------------------
+  // VALIDATION ERRORS
+  // --------------------------------------------------
+
+  const [errors, setErrors] = useState({
+    caseNumber: '',
+    organisation: '',
+    fundingAgreement: '',
+    description: '',
+  });
+
   const [stats, setStats] = useState({
     DRAFT: 0,
     'IN PROGRESS': 0,
@@ -67,6 +77,42 @@ export default function CasesScreen() {
     'ACTION REQUIRED': 0,
     APPROVED: 0,
   });
+
+  // --------------------------------------------------
+  // HELPERS
+  // --------------------------------------------------
+
+  const clearError = (field) => {
+    setErrors((previous) => ({
+      ...previous,
+      [field]: '',
+    }));
+  };
+
+  const normaliseCaseNumber = (value) => {
+    return value
+      .toUpperCase()
+      .replace(/\s+/g, '');
+  };
+
+  const validateCaseNumberFormat = (value) => {
+    /*
+      Expected format:
+
+      DSAC-CASE-2026-001
+
+      DSAC-CASE-
+      4 digit year
+      -
+      at least 3 digit case sequence
+    */
+
+    return /^DSAC-CASE-\d{4}-\d{3,}$/.test(value);
+  };
+
+  // --------------------------------------------------
+  // LOAD DATA
+  // --------------------------------------------------
 
   const loadData = useCallback(async () => {
     try {
@@ -201,6 +247,10 @@ export default function CasesScreen() {
     }, [loadData])
   );
 
+  // --------------------------------------------------
+  // REFRESH
+  // --------------------------------------------------
+
   const refresh = async () => {
     setRefreshing(true);
 
@@ -211,20 +261,125 @@ export default function CasesScreen() {
     }
   };
 
+// --------------------------------------------------
+// INPUT HANDLERS
+// --------------------------------------------------
+const selectOrganisation = (organisation) => {
+  setSelectedOrganisation(organisation);
+
+  const handleCaseNumberChange = (value) => {
+    const formatted = normaliseCaseNumber(value);
+
+    setCaseNumber(formatted);
+
+    clearError('caseNumber');
+  };
+
+  const handleDescriptionChange = (value) => {
+    setDescription(value);
+
+    clearError('description');
+  };
+
+  // --------------------------------------------------
+  // ORGANISATION SELECTION
+  // --------------------------------------------------
+
   const selectOrganisation = (organisation) => {
     setSelectedOrganisation(organisation);
 
+    // Changing organisation invalidates the previous
+    // funding agreement.
     setSelectedFundingAgreement(null);
 
     setShowOrganisationList(false);
     setShowFundingList(false);
+
+    clearError('organisation');
+    clearError('fundingAgreement');
   };
 
-  const selectFundingAgreement = (agreement) => {
+// --------------------------------------------------
+// FUNDING AGREEMENT SELECTION
+// --------------------------------------------------
+
+const selectFundingAgreement = (agreement) => {
+  if (!selectedOrganisation) {
+    setErrors((previous) => ({
+      ...previous,
+      fundingAgreement: 'Please select an organisation first.',
+    }));
+
+    return;
+  }
+
+  // Extra safety check
+  if (agreement.organisation_id !== selectedOrganisation.id) {
+    setErrors((previous) => ({
+      ...previous,
+      fundingAgreement:
+        'This funding agreement does not belong to the selected organisation.',
+    }));
+
+    return;
+  }
     setSelectedFundingAgreement(agreement);
 
     setShowFundingList(false);
+
+    clearError('fundingAgreement');
   };
+
+// --------------------------------------------------
+// FORM VALIDATION
+// --------------------------------------------------
+
+const validateForm = async () => {
+  const newErrors = {
+    caseNumber: '',
+    organisation: '',
+    fundingAgreement: '',
+    description: '',
+  };
+
+  let valid = true;
+
+  const cleanedCaseNumber = normaliseCaseNumber(caseNumber.trim());
+
+  const cleanedDescription = description.trim();
+
+  // ----------------------------------------------
+
+  if (!cleanedCaseNumber) {
+    newErrors.caseNumber = 'Case number is required.';
+    valid = false;
+  } else if (!validateCaseNumberFormat(cleanedCaseNumber)) {
+    newErrors.caseNumber = 'Use the format DSAC-CASE-2026-001.';
+    valid = false;
+  } else {
+    /*
+      Check for duplicate case number
+      in Supabase.
+    */
+
+    const { data, error } = await supabase
+      .from('accountability_cases')
+      .select('id')
+      .eq('case_number', cleanedCaseNumber)
+      .limit(1);
+
+    if (error) {
+      console.error('Duplicate case check error:', error);
+
+      newErrors.caseNumber = 'The case number could not be verified.';
+      valid = false;
+    } else if (data && data.length > 0) {
+      newErrors.caseNumber = 'This case number already exists.';
+      valid = false;
+    }
+  }
+
+  // reset form helper kept below
 
   const resetForm = () => {
     setCaseNumber('');
@@ -236,76 +391,122 @@ export default function CasesScreen() {
     setShowOrganisationList(false);
     setShowFundingList(false);
   };
-
-  const createCase = async () => {
-    if (!caseNumber.trim()) {
-      Alert.alert(
-        'Missing Information',
-        'Please enter a case number.'
-      );
-
-      return;
     }
+
+    // ----------------------------------------------
+    // ORGANISATION
+    // ----------------------------------------------
 
     if (!selectedOrganisation) {
-      Alert.alert(
-        'Missing Information',
-        'Please select an organisation.'
-      );
-
-      return;
+newErrors.organisation = 'Please select an organisation.';
+valid = false;
     }
+
+    // ----------------------------------------------
+    // FUNDING AGREEMENT
+    // ----------------------------------------------
 
     if (!selectedFundingAgreement) {
-      Alert.alert(
-        'Missing Information',
-        'Please select a funding agreement.'
-      );
+newErrors.fundingAgreement = 'Please select a funding agreement.';
+valid = false;
+} else if (
+  selectedOrganisation &&
+  selectedFundingAgreement.organisation_id !== selectedOrganisation.id
+) {
+  newErrors.fundingAgreement =
+    'The selected funding agreement does not belong to the selected organisation.';
+  valid = false;
+}
 
-      return;
+// ----------------------------------------------
+// DESCRIPTION
+// ----------------------------------------------
+
+if (!cleanedDescription) {
+  newErrors.description = 'Case description is required.';
+  valid = false;
+} else if (cleanedDescription.length < 20) {
+  newErrors.description = 'Case description must contain at least 20 characters.';
+  valid = false;
+} else if (cleanedDescription.length > 2000) {
+  newErrors.description = 'Case description cannot exceed 2000 characters.';
+  valid = false;
     }
 
-    if (!description.trim()) {
-      Alert.alert(
-        'Missing Information',
-        'Please enter a case description.'
-      );
+    setErrors(newErrors);
 
-      return;
-    }
+    return valid;
+  };
 
+  // --------------------------------------------------
+  // CREATE CASE
+  // --------------------------------------------------
+
+  const createCase = async () => {
     if (!user?.id) {
       Alert.alert(
         'Authentication Error',
         'Your account could not be identified. Please sign in again.'
       );
 
+return;
+}
+
+const valid = await validateForm();
+
+if (!valid) {
+  Alert.alert(
+    'Please Check Your Information',
+    'Some fields contain missing or invalid information. Please correct the highlighted fields.'
+  );
+
+
       return;
     }
 
     if (
-      selectedFundingAgreement.organisation_id !==
-      selectedOrganisation.id
+      !selectedOrganisation ||
+      !selectedFundingAgreement
     ) {
-      Alert.alert(
-        'Invalid Funding Agreement',
-        'The selected funding agreement does not belong to the selected organisation.'
-      );
-
       return;
     }
 
     try {
       setSaving(true);
 
+      const cleanedCaseNumber =
+        normaliseCaseNumber(
+          caseNumber.trim()
+        );
+
+      const cleanedDescription =
+        description.trim();
+
+      // Final relationship check before database insert
+      if (
+        selectedFundingAgreement.organisation_id !==
+        selectedOrganisation.id
+      ) {
+        setErrors((previous) => ({
+          ...previous,
+          fundingAgreement:
+            'The selected funding agreement does not belong to the selected organisation.',
+        }));
+
+        return;
+      }
+
       const { error } = await supabase
         .from('accountability_cases')
         .insert({
-          case_number: caseNumber.trim(),
+case_number:
+  cleanedCaseNumber,
 
-          title: caseNumber.trim(),
+title:
+  cleanedCaseNumber,
 
-          description: description.trim(),
+description:
+  cleanedDescription,
 
           organisation_id:
             selectedOrganisation.id,
@@ -328,10 +529,24 @@ export default function CasesScreen() {
 
       Alert.alert(
         'Accountability Case Created',
-        `Case ${caseNumber.trim()} has been created successfully.`
+        `Case ${cleanedCaseNumber} has been created successfully.`
       );
 
-      resetForm();
+resetForm();
+
+setErrors({
+  caseNumber: '',
+  organisation: '',
+  fundingAgreement: '',
+  description: '',
+});
+
+      setErrors({
+        caseNumber: '',
+        organisation: '',
+        fundingAgreement: '',
+        description: '',
+      });
 
       setShowForm(false);
 
@@ -342,15 +557,67 @@ export default function CasesScreen() {
         error
       );
 
-      Alert.alert(
-        'Unable to Create Case',
-        error?.message ||
-          'The accountability case could not be created.'
-      );
+      /*
+        Handle Supabase duplicate constraint
+        as an additional safety layer.
+      */
+
+      if (
+        error?.code === '23505'
+      ) {
+        setErrors((previous) => ({
+          ...previous,
+          caseNumber:
+            'This case number already exists. Please use a different case number.',
+        }));
+
+        Alert.alert(
+          'Duplicate Case Number',
+          'A case with this case number already exists.'
+        );
+      } else {
+        Alert.alert(
+          'Unable to Create Case',
+          error?.message ||
+            'The accountability case could not be created.'
+        );
+      }
     } finally {
       setSaving(false);
     }
   };
+
+  // --------------------------------------------------
+  // CANCEL FORM
+  // --------------------------------------------------
+
+  const cancelForm = () => {
+    if (saving) {
+      return;
+    }
+
+    setCaseNumber('');
+    setDescription('');
+
+    setSelectedOrganisation(null);
+    setSelectedFundingAgreement(null);
+
+    setShowOrganisationList(false);
+    setShowFundingList(false);
+
+    setErrors({
+      caseNumber: '',
+      organisation: '',
+      fundingAgreement: '',
+      description: '',
+    });
+
+    setShowForm(false);
+  };
+
+  // --------------------------------------------------
+  // FILTER FUNDING AGREEMENTS
+  // --------------------------------------------------
 
   const filteredFundingAgreements =
     selectedOrganisation
@@ -360,6 +627,10 @@ export default function CasesScreen() {
             selectedOrganisation.id
         )
       : [];
+
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
 
   return (
     <ProtectedRoute
@@ -431,79 +702,49 @@ export default function CasesScreen() {
             />
           </View>
 
+{/* HEADER */}
+
           {/* GOVERNMENT HEADER */}
           <View
             style={[
               styles.topHeader,
-              isDesktop &&
-                styles.topHeaderTablet,
+              isDesktop && styles.topHeaderTablet,
             ]}
           >
             <View style={styles.brandArea}>
               <View style={styles.coatContainer}>
-                <Text style={styles.coatPlaceholder}>
-                  SA
-                </Text>
+                <Text style={styles.coatPlaceholder}>SA</Text>
               </View>
 
               <View style={styles.brandText}>
-                <Text style={styles.brandTitle}>
-                  REPUBLIC OF SOUTH AFRICA
-                </Text>
+                <Text style={styles.brandTitle}>REPUBLIC OF SOUTH AFRICA</Text>
 
-                <Text style={styles.departmentText}>
-                  DEPARTMENT OF SPORT, ARTS AND CULTURE
-                </Text>
+                <Text style={styles.departmentText}>DEPARTMENT OF SPORT, ARTS AND CULTURE</Text>
 
-                <Text style={styles.republicText}>
-                  GOVERNMENT OF SOUTH AFRICA
-                </Text>
+                <Text style={styles.republicText}>GOVERNMENT OF SOUTH AFRICA</Text>
               </View>
             </View>
 
             <View style={styles.sloganArea}>
-              <Text style={styles.slogan}>
-                Inspiring a Nation through Sport, Arts and Culture
-              </Text>
+              <Text style={styles.slogan}>Inspiring a Nation through Sport, Arts and Culture</Text>
 
               <View style={styles.sloganLine} />
             </View>
 
             <View style={styles.userArea}>
-              <Text style={styles.userSmall}>
-                SIGNED IN AS
-              </Text>
+              <Text style={styles.userSmall}>SIGNED IN AS</Text>
 
-              <Text style={styles.userRole}>
-                DSAC ADMIN
-              </Text>
+              <Text style={styles.userRole}>DSAC ADMIN</Text>
 
-              <Text
-                style={styles.userEmail}
-                numberOfLines={1}
-              >
+              <Text style={styles.userEmail} numberOfLines={1}>
                 {user?.email || 'Administrator'}
               </Text>
 
               <Pressable
-                style={({ pressed }) => [
-                  styles.dashboardButton,
-                  pressed &&
-                    styles.dashboardButtonPressed,
-                ]}
-                onPress={() =>
-                  router.replace(
-                    '/dsac/dashboard'
-                  )
-                }
+                style={({ pressed }) => [styles.dashboardButton, pressed && styles.dashboardButtonPressed]}
+                onPress={() => router.replace('/dsac/dashboard')}
               >
-                <Text
-                  style={
-                    styles.dashboardButtonText
-                  }
-                >
-                  DASHBOARD
-                </Text>
+                <Text style={styles.dashboardButtonText}>DASHBOARD</Text>
               </Pressable>
             </View>
           </View>
@@ -511,17 +752,9 @@ export default function CasesScreen() {
           {/* CIVITRACK SYSTEM BAR */}
           <View style={styles.systemBar}>
             <View>
-              <Text style={styles.systemName}>
-                CIVITRACK
-              </Text>
+              <Text style={styles.systemName}>CIVITRACK</Text>
 
-              <Text
-                style={
-                  styles.systemDescription
-                }
-              >
-                DIGITAL GOVERNMENT ACCOUNTABILITY PLATFORM
-              </Text>
+              <Text style={styles.systemDescription}>DIGITAL GOVERNMENT ACCOUNTABILITY PLATFORM</Text>
             </View>
 
             <View style={styles.systemRight}>
@@ -534,17 +767,9 @@ export default function CasesScreen() {
               <View style={styles.statusBox}>
                 <View style={styles.statusDot} />
 
-                <Text
-                  style={styles.statusLabel}
-                >
-                  SYSTEM STATUS
-                </Text>
+                <Text style={styles.statusLabel}>SYSTEM STATUS</Text>
 
-                <Text
-                  style={styles.statusValue}
-                >
-                  OPERATIONAL
-                </Text>
+                <Text style={styles.statusValue}>OPERATIONAL</Text>
               </View>
             </View>
           </View>
@@ -577,13 +802,21 @@ export default function CasesScreen() {
               </Text>
             </Pressable>
 
-            <View
-              style={[
-                styles.navItem,
-                styles.navActive,
-              ]}
-            >
+<View style={[styles.navItem, styles.navActive]}>
               <Text
+                style={styles.navActiveText}
+              >
+                {/* active nav label */}
+              </Text>
+              <Text style={styles.subtitle}>DSAC Accountability Cases</Text>
+            </View>
+          </View>
+
+          <View style={styles.main}>
+            {/* PAGE HEADING */}
+
+            <View style={styles.heading}>
+              <View
                 style={
                   styles.navActiveText
                 }
@@ -1246,6 +1479,175 @@ export default function CasesScreen() {
                   and accountability requirements associated
                   with DSAC funding agreements.
                 </Text>
+
+                {/* CASE NUMBER */}
+
+                <Text style={styles.label}>CASE NUMBER *</Text>
+
+                <TextInput
+                  style={[
+                    styles.input,
+                    errors.caseNumber && styles.inputError,
+                  ]}
+                  placeholder="e.g. DSAC-CASE-2026-001"
+                  placeholderTextColor="#888888"
+                  value={caseNumber}
+                  onChangeText={handleCaseNumberChange}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  maxLength={30}
+                />
+
+                {errors.caseNumber ? (
+                  <Text style={styles.errorText}>{errors.caseNumber}</Text>
+                ) : (
+                  <Text style={styles.helperText}>Format: DSAC-CASE-YYYY-001</Text>
+                )}
+
+                {/* ORGANISATION */}
+
+                <Text style={styles.label}>ORGANISATION *</Text>
+
+                <Pressable
+                  style={[
+                    styles.selectInput,
+                    showOrganisationList && styles.selectInputActive,
+                    errors.organisation && styles.inputError,
+                  ]}
+                  onPress={() => setShowOrganisationList(!showOrganisationList)}
+                >
+                  <Text style={selectedOrganisation ? styles.selectText : styles.placeholderText}>
+                    {selectedOrganisation ? selectedOrganisation.name : 'Select organisation'}
+                  </Text>
+
+                  <Text style={styles.selectArrow}>{showOrganisationList ? '▲' : '▼'}</Text>
+                </Pressable>
+
+                {errors.organisation && (
+                  <Text style={styles.errorText}>{errors.organisation}</Text>
+                )}
+
+                {showOrganisationList && (
+                  <View style={styles.dropdown}>
+                    {organisations.length === 0 ? (
+                      <Text style={styles.dropdownEmpty}>No organisations available.</Text>
+                    ) : (
+                      organisations.map((organisation) => (
+                        <Pressable
+                          key={organisation.id}
+                          style={styles.dropdownItem}
+                          onPress={() => selectOrganisation(organisation)}
+                        >
+                          <Text style={styles.dropdownItemTitle}>{organisation.name}</Text>
+
+                          <Text style={styles.dropdownItemSubtitle}>
+                            {organisation.organisation_type}
+
+                            {organisation.registration_number ? ` • ${organisation.registration_number}` : ''}
+                          </Text>
+                        </Pressable>
+                      ))
+                    )}
+                  </View>
+                )}
+
+                {/* FUNDING AGREEMENT */}
+
+                <Text style={styles.label}>FUNDING AGREEMENT *</Text>
+
+                <Pressable
+                  style={[
+                    styles.selectInput,
+                    !selectedOrganisation && styles.disabledInput,
+                    errors.fundingAgreement && styles.inputError,
+                  ]}
+                  disabled={!selectedOrganisation}
+                  onPress={() => setShowFundingList(!showFundingList)}
+                >
+                  <Text style={selectedFundingAgreement ? styles.selectText : styles.placeholderText}>
+                    {selectedFundingAgreement
+                      ? `${selectedFundingAgreement.agreement_number} — ${selectedFundingAgreement.title || 'Funding Agreement'}`
+                      : selectedOrganisation
+                      ? 'Select funding agreement'
+                      : 'Select an organisation first'}
+                  </Text>
+
+                  <Text style={styles.selectArrow}>
+                    {selectedOrganisation ? (showFundingList ? '▲' : '▼') : ''}
+                  </Text>
+                </Pressable>
+
+                {errors.fundingAgreement && (
+                  <Text style={styles.errorText}>{errors.fundingAgreement}</Text>
+                )}
+
+                {showFundingList && selectedOrganisation && (
+                  <View style={styles.dropdown}>
+                    {filteredFundingAgreements.length === 0 ? (
+                      <Text style={styles.dropdownEmpty}>No funding agreements found for this organisation.</Text>
+                    ) : (
+                      filteredFundingAgreements.map((agreement) => (
+                        <Pressable
+                          key={agreement.id}
+                          style={styles.dropdownItem}
+                          onPress={() => selectFundingAgreement(agreement)}
+                        >
+                          <Text style={styles.dropdownItemTitle}>{agreement.agreement_number}</Text>
+
+                          <Text style={styles.dropdownItemSubtitle}>
+                            {agreement.title || 'Funding Agreement'}
+
+                            {agreement.allocated_amount !== null
+                              ? ` • ${agreement.currency || 'ZAR'} ${Number(agreement.allocated_amount).toLocaleString('en-ZA')}`
+                              : ''}
+                          </Text>
+                        </Pressable>
+                      ))
+                    )}
+                  </View>
+                )}
+
+                {/* DESCRIPTION */}
+
+                <Text style={styles.label}>CASE DESCRIPTION *</Text>
+
+                <TextInput
+                  style={[styles.input, styles.textArea, errors.description && styles.inputError]}
+                  placeholder="Describe the accountability requirements..."
+                  placeholderTextColor="#888888"
+                  value={description}
+                  onChangeText={handleDescriptionChange}
+                  multiline
+                  textAlignVertical="top"
+                  maxLength={2000}
+                />
+
+                <View style={styles.descriptionFooter}>
+                  {errors.description ? (
+                    <Text style={styles.errorText}>{errors.description}</Text>
+                  ) : (
+                    <Text style={styles.helperText}>Minimum 20 characters.</Text>
+                  )}
+
+                  <Text style={styles.characterCount}>{description.length}/2000</Text>
+                </View>
+
+                {/* ACTION BUTTONS */}
+
+                <View style={styles.actions}>
+                  <Pressable style={styles.cancel} onPress={cancelForm} disabled={saving}>
+                    <Text style={styles.cancelText}>CANCEL</Text>
+                  </Pressable>
+
+                  <Pressable style={[styles.save, saving && styles.saveDisabled]} onPress={createCase} disabled={saving}>
+                    {saving ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.saveText}>CREATE CASE</Text>
+                    )}
+                  </Pressable>
+                </View>
+
               </View>
             </View>
 
@@ -1280,6 +1682,8 @@ export default function CasesScreen() {
               </View>
             </View>
 
+            {/* LOADING */}
+
             {loading ? (
               <View
                 style={
@@ -1301,6 +1705,8 @@ export default function CasesScreen() {
               </View>
             ) : (
               <>
+                {/* STATUS CARDS */}
+
                 <View
                   style={[
                     styles.statusGrid,
@@ -1602,6 +2008,10 @@ export default function CasesScreen() {
   );
 }
 
+// --------------------------------------------------
+// STATUS CARD
+// --------------------------------------------------
+
 function StatusCard({
   label,
   number,
@@ -1635,6 +2045,10 @@ function StatusCard({
     </View>
   );
 }
+
+// --------------------------------------------------
+// CASE CARD
+// --------------------------------------------------
 
 function CaseCard({ item }) {
   const organisationName =
@@ -1844,6 +2258,10 @@ function CaseCard({ item }) {
   );
 }
 
+// --------------------------------------------------
+// STATUS STYLE
+// --------------------------------------------------
+
 function getStatusStyle(status) {
   switch (status) {
     case 'APPROVED':
@@ -1907,6 +2325,10 @@ function getStatusStyle(status) {
       };
   }
 }
+
+// --------------------------------------------------
+// STYLES
+// --------------------------------------------------
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -2389,12 +2811,35 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
 
+  inputError: {
+    borderColor: '#C62828',
+    borderWidth: 1.5,
+    backgroundColor: '#FFF8F8',
+  },
+
+  errorText: {
+    color: '#C62828',
+    fontSize: 11,
+    marginTop: 5,
+    fontWeight: '600',
+  },
+
+  helperText: {
+    color: '#888888',
+    fontSize: 10,
+    marginTop: 5,
+  },
+
+  characterCount: {
+    color: '#888888',
+    fontSize: 10,
+    marginTop: 5,
+  },
+
   textArea: {
     minHeight: 120,
     paddingTop: 12,
   },
-
-  /* SELECTS */
 
   selectInput: {
     minHeight: 44,
@@ -2473,8 +2918,23 @@ const styles = StyleSheet.create({
 
   /* WORKFLOW */
 
-  workflowNotice: {
-    backgroundColor: '#F8F8F8',
+  descriptionFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: 25,
+  },
+
+  cancel: {
+    borderWidth: 1,
+    borderColor: '#E4E4E4',
+    flexDirection: 'row',
     borderWidth: 1,
     borderColor: '#E4E4E4',
     flexDirection: 'row',

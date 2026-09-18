@@ -1,3 +1,4 @@
+
 import React, {
   useCallback,
   useState,
@@ -244,7 +245,7 @@ export default function DSACDashboard() {
               <View style={styles.coatContainer}>
  
                 <Image
-                  source={require('../../assets/images/sa.jpg')}
+                  source={require('../../assets/images/sa-government.jpg')}
                   style={styles.coatOfArms}
                   resizeMode="contain"
                 />
@@ -764,10 +765,11 @@ export default function DSACDashboard() {
     </ProtectedRoute>
   );
 }
+
  
-/* =============================================================
+/* ============================================================
    SECTION HEADER
-============================================================= */
+   ============================================================ */
  
 function SectionHeader({
   title,
@@ -775,6 +777,7 @@ function SectionHeader({
 }) {
   return (
     <View style={styles.sectionHeader}>
+
  
       <View style={styles.sectionOrangeBar} />
  
@@ -795,8 +798,8 @@ function SectionHeader({
 }
  
 /* =============================================================
-   STAT CARD
-============================================================= */
+  STAT CARD
+  ============================================================= */
  
 function GovernmentStatCard({
   title,
@@ -836,6 +839,7 @@ function GovernmentStatCard({
           },
         ]}
       />
+
  
     </View>
   );
@@ -843,8 +847,7 @@ function GovernmentStatCard({
  
 /* =============================================================
    ACTION CARD
-============================================================= */
- 
+  ============================================================= */
 function GovernmentAction({
   number,
   title,
@@ -900,11 +903,11 @@ function GovernmentAction({
     </Pressable>
   );
 }
+
  
 /* =============================================================
    WORKFLOW
-============================================================= */
- 
+  ============================================================= */
 function WorkflowStep({
   number,
   title,
@@ -940,10 +943,11 @@ function WorkflowLine() {
     </View>
   );
 }
+
  
-/* =============================================================
+ /* =============================================================
    STYLES
-============================================================= */
+ ============================================================= */
  
 const styles = StyleSheet.create({
  
