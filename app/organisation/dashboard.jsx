@@ -918,11 +918,6 @@ export default function OrganisationDashboardScreen() {
                 FUNDING
               </Text>
             </Pressable>
-            >
-              <Text style={styles.navText}>
-                FUNDING
-              </Text>
-            </Pressable>
 
             <Pressable
               style={({ pressed }) => [
@@ -994,8 +989,6 @@ export default function OrganisationDashboardScreen() {
             </View>
 
             {/* BREADCRUMB */}
-              </Text>
-
               <Text style={styles.breadcrumbSlash}>
                 /
               </Text>
@@ -1923,7 +1916,7 @@ export default function OrganisationDashboardScreen() {
                 </Text>
               </View>
             </View>
-          </View>
+      
 
           {/* ==================================================
               FOOTER
