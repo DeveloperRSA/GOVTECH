@@ -847,9 +847,14 @@ export default function OrganisationDashboardScreen() {
             </Text>
 
             <Pressable
-              onPress={() =>
-                router.push('/organasation/team')
-              }
+              onPress={() => {
+                router.push({
+                  pathname: "/organisation/workspace",
+                  params: {
+                    organisationId: organisation.id,
+                  },
+                });
+              }}
             >
               <Text style={styles.viewAllText}>
                 View Team
@@ -977,23 +982,34 @@ export default function OrganisationDashboardScreen() {
           </Text>
 
           <View style={styles.actionsGrid}>
-            <ActionButton
-              title="Manage Team"
-              subtitle="Staff & collaborators"
-              icon="👥"
-              onPress={() =>
-                router.push('/organasation/team')
-              }
-            />
+          <ActionButton
+  title="Workspaces"
+  subtitle="Cases & funding"
+  icon="▣"
+  onPress={() => {
+    if (!organisation?.id) {
+      Alert.alert(
+        'Organisation Error',
+        'Your organisation could not be identified.'
+      );
+      return;
+    }
 
-            <ActionButton
-              title="Workspaces"
-              subtitle="Cases & funding"
-              icon="▣"
-              onPress={() =>
-                handleComingSoon('Workspaces')
-              }
-            />
+    console.log(
+      'Opening Workspace for organisation:',
+      organisation.id
+    );
+
+    router.push({
+      pathname: '/organisation/workspace',
+      params: {
+        organisationId: String(organisation.id),
+      },
+    });
+  }}
+/>
+
+          
 
             <ActionButton
               title="Tasks"
