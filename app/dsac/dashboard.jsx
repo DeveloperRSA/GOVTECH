@@ -79,10 +79,19 @@ export default function DSACDashboard() {
             head: true,
           })
           .in('status', [
+<<<<<<< HEAD
             'DRAFT',
             'IN PROGRESS',
             'UNDER REVIEW',
             'ACTION REQUIRED',
+=======
+            'ASSIGNED',
+            'IN PROGRESS',
+            'SUBMITTED',
+            'UNDER REVIEW',
+            'ACTION REQUIRED',
+            'RESUBMITTED',
+>>>>>>> 76cc13b6f3b2442cce35e7c1295bed12a51b8c16
           ]),
  
         supabase
@@ -243,7 +252,11 @@ export default function DSACDashboard() {
               <View style={styles.coatContainer}>
  
                 <Image
+<<<<<<< HEAD
                   source={require('../../assets/images/sa.jpg')}
+=======
+                  source={require('../../assets/images/sa-government.jpg')}
+>>>>>>> 76cc13b6f3b2442cce35e7c1295bed12a51b8c16
                   style={styles.coatOfArms}
                   resizeMode="contain"
                 />
@@ -411,6 +424,7 @@ export default function DSACDashboard() {
               </Text>
             </Pressable>
  
+<<<<<<< HEAD
             <Pressable
               style={styles.navItem}
               onPress={() =>
@@ -419,6 +433,11 @@ export default function DSACDashboard() {
             >
               <Text style={styles.navText}>
                 ANALYTICS
+=======
+            <Pressable style={styles.navItem}>
+              <Text style={styles.navText}>
+                REPORTS
+>>>>>>> 76cc13b6f3b2442cce35e7c1295bed12a51b8c16
               </Text>
             </Pressable>
  
@@ -598,6 +617,7 @@ export default function DSACDashboard() {
                 }
               />
  
+<<<<<<< HEAD
               <GovernmentAction
                 number="04"
                 title="Analytics & Early Warning"
@@ -608,6 +628,8 @@ export default function DSACDashboard() {
                 }
               />
  
+=======
+>>>>>>> 76cc13b6f3b2442cce35e7c1295bed12a51b8c16
             </View>
  
             {/* =================================================
