@@ -1,4 +1,7 @@
-import React, { useCallback, useState } from 'react';
+import React, {
+  useCallback,
+  useState,
+} from 'react';
 
 import {
   Alert,
@@ -11,6 +14,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 
@@ -25,6 +29,12 @@ import { supabase } from '../../src/services/supabase';
 import { ROLES } from '../../src/constants/roles';
 
 export default function CasesScreen() {
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 900;
+  const handleCaseNumberChange = (value) => {
+  setCaseNumber(value.toUpperCase());
+};
+
   const { user } = useAuth();
 
   const [showForm, setShowForm] = useState(false);
@@ -254,9 +264,11 @@ export default function CasesScreen() {
     }
   };
 
-  // --------------------------------------------------
-  // INPUT HANDLERS
-  // --------------------------------------------------
+// --------------------------------------------------
+// INPUT HANDLERS
+// --------------------------------------------------
+const selectOrganisation = (organisation) => {
+  setSelectedOrganisation(organisation);
 
   const handleCaseNumberChange = (value) => {
     const formatted = normaliseCaseNumber(value);
@@ -290,35 +302,30 @@ export default function CasesScreen() {
     clearError('fundingAgreement');
   };
 
-  // --------------------------------------------------
-  // FUNDING AGREEMENT SELECTION
-  // --------------------------------------------------
+// --------------------------------------------------
+// FUNDING AGREEMENT SELECTION
+// --------------------------------------------------
 
-  const selectFundingAgreement = (agreement) => {
-    if (!selectedOrganisation) {
-      setErrors((previous) => ({
-        ...previous,
-        fundingAgreement:
-          'Please select an organisation first.',
-      }));
+const selectFundingAgreement = (agreement) => {
+  if (!selectedOrganisation) {
+    setErrors((previous) => ({
+      ...previous,
+      fundingAgreement: 'Please select an organisation first.',
+    }));
 
-      return;
-    }
+    return;
+  }
 
-    // Extra safety check
-    if (
-      agreement.organisation_id !==
-      selectedOrganisation.id
-    ) {
-      setErrors((previous) => ({
-        ...previous,
-        fundingAgreement:
-          'This funding agreement does not belong to the selected organisation.',
-      }));
+  // Extra safety check
+  if (agreement.organisation_id !== selectedOrganisation.id) {
+    setErrors((previous) => ({
+      ...previous,
+      fundingAgreement:
+        'This funding agreement does not belong to the selected organisation.',
+    }));
 
-      return;
-    }
-
+    return;
+  }
     setSelectedFundingAgreement(agreement);
 
     setShowFundingList(false);
@@ -326,74 +333,67 @@ export default function CasesScreen() {
     clearError('fundingAgreement');
   };
 
-  // --------------------------------------------------
-  // FORM VALIDATION
-  // --------------------------------------------------
+// --------------------------------------------------
+// FORM VALIDATION
+// --------------------------------------------------
 
-  const validateForm = async () => {
-    const newErrors = {
-      caseNumber: '',
-      organisation: '',
-      fundingAgreement: '',
-      description: '',
-    };
+const validateForm = async () => {
+  const newErrors = {
+    caseNumber: '',
+    organisation: '',
+    fundingAgreement: '',
+    description: '',
+  };
 
-    let valid = true;
+  let valid = true;
 
-    const cleanedCaseNumber =
-      normaliseCaseNumber(caseNumber.trim());
+  const cleanedCaseNumber = normaliseCaseNumber(caseNumber.trim());
 
-    const cleanedDescription =
-      description.trim();
+  const cleanedDescription = description.trim();
 
-    // ----------------------------------------------
-    // CASE NUMBER
-    // ----------------------------------------------
+  // ----------------------------------------------
 
-    if (!cleanedCaseNumber) {
-      newErrors.caseNumber =
-        'Case number is required.';
+  if (!cleanedCaseNumber) {
+    newErrors.caseNumber = 'Case number is required.';
+    valid = false;
+  } else if (!validateCaseNumberFormat(cleanedCaseNumber)) {
+    newErrors.caseNumber = 'Use the format DSAC-CASE-2026-001.';
+    valid = false;
+  } else {
+    /*
+      Check for duplicate case number
+      in Supabase.
+    */
+
+    const { data, error } = await supabase
+      .from('accountability_cases')
+      .select('id')
+      .eq('case_number', cleanedCaseNumber)
+      .limit(1);
+
+    if (error) {
+      console.error('Duplicate case check error:', error);
+
+      newErrors.caseNumber = 'The case number could not be verified.';
       valid = false;
-    } else if (
-      !validateCaseNumberFormat(
-        cleanedCaseNumber
-      )
-    ) {
-      newErrors.caseNumber =
-        'Use the format DSAC-CASE-2026-001.';
+    } else if (data && data.length > 0) {
+      newErrors.caseNumber = 'This case number already exists.';
       valid = false;
-    } else {
-      /*
-        Check for duplicate case number
-        in Supabase.
-      */
+    }
+  }
 
-      const { data, error } = await supabase
-        .from('accountability_cases')
-        .select('id')
-        .eq(
-          'case_number',
-          cleanedCaseNumber
-        )
-        .limit(1);
+  // reset form helper kept below
 
-      if (error) {
-        console.error(
-          'Duplicate case check error:',
-          error
-        );
+  const resetForm = () => {
+    setCaseNumber('');
+    setDescription('');
 
-        newErrors.caseNumber =
-          'The case number could not be verified.';
-        valid = false;
-      } else if (
-        data &&
-        data.length > 0
-      ) {
-        newErrors.caseNumber =
-          'This case number already exists.';
-        valid = false;
-      }
+    setSelectedOrganisation(null);
+    setSelectedFundingAgreement(null);
+
+    setShowOrganisationList(false);
+    setShowFundingList(false);
+  };
     }
 
     // ----------------------------------------------
@@ -401,9 +401,8 @@ export default function CasesScreen() {
     // ----------------------------------------------
 
     if (!selectedOrganisation) {
-      newErrors.organisation =
-        'Please select an organisation.';
-      valid = false;
+newErrors.organisation = 'Please select an organisation.';
+valid = false;
     }
 
     // ----------------------------------------------
@@ -411,39 +410,30 @@ export default function CasesScreen() {
     // ----------------------------------------------
 
     if (!selectedFundingAgreement) {
-      newErrors.fundingAgreement =
-        'Please select a funding agreement.';
-      valid = false;
-    } else if (
-      selectedOrganisation &&
-      selectedFundingAgreement.organisation_id !==
-        selectedOrganisation.id
-    ) {
-      newErrors.fundingAgreement =
-        'The selected funding agreement does not belong to the selected organisation.';
-      valid = false;
-    }
+newErrors.fundingAgreement = 'Please select a funding agreement.';
+valid = false;
+} else if (
+  selectedOrganisation &&
+  selectedFundingAgreement.organisation_id !== selectedOrganisation.id
+) {
+  newErrors.fundingAgreement =
+    'The selected funding agreement does not belong to the selected organisation.';
+  valid = false;
+}
 
-    // ----------------------------------------------
-    // DESCRIPTION
-    // ----------------------------------------------
+// ----------------------------------------------
+// DESCRIPTION
+// ----------------------------------------------
 
-    if (!cleanedDescription) {
-      newErrors.description =
-        'Case description is required.';
-      valid = false;
-    } else if (
-      cleanedDescription.length < 20
-    ) {
-      newErrors.description =
-        'Case description must contain at least 20 characters.';
-      valid = false;
-    } else if (
-      cleanedDescription.length > 2000
-    ) {
-      newErrors.description =
-        'Case description cannot exceed 2000 characters.';
-      valid = false;
+if (!cleanedDescription) {
+  newErrors.description = 'Case description is required.';
+  valid = false;
+} else if (cleanedDescription.length < 20) {
+  newErrors.description = 'Case description must contain at least 20 characters.';
+  valid = false;
+} else if (cleanedDescription.length > 2000) {
+  newErrors.description = 'Case description cannot exceed 2000 characters.';
+  valid = false;
     }
 
     setErrors(newErrors);
@@ -462,16 +452,17 @@ export default function CasesScreen() {
         'Your account could not be identified. Please sign in again.'
       );
 
-      return;
-    }
+return;
+}
 
-    const valid = await validateForm();
+const valid = await validateForm();
 
-    if (!valid) {
-      Alert.alert(
-        'Please Check Your Information',
-        'Some fields contain missing or invalid information. Please correct the highlighted fields.'
-      );
+if (!valid) {
+  Alert.alert(
+    'Please Check Your Information',
+    'Some fields contain missing or invalid information. Please correct the highlighted fields.'
+  );
+
 
       return;
     }
@@ -511,14 +502,14 @@ export default function CasesScreen() {
       const { error } = await supabase
         .from('accountability_cases')
         .insert({
-          case_number:
-            cleanedCaseNumber,
+case_number:
+  cleanedCaseNumber,
 
-          title:
-            cleanedCaseNumber,
+title:
+  cleanedCaseNumber,
 
-          description:
-            cleanedDescription,
+description:
+  cleanedDescription,
 
           organisation_id:
             selectedOrganisation.id,
@@ -530,11 +521,9 @@ export default function CasesScreen() {
 
           priority: 'MEDIUM',
 
-          created_by:
-            user.id,
+          created_by: user.id,
 
-          responsible_user_id:
-            null,
+          responsible_user_id: null,
         });
 
       if (error) {
@@ -546,15 +535,14 @@ export default function CasesScreen() {
         `Case ${cleanedCaseNumber} has been created successfully.`
       );
 
-      // Reset form
-      setCaseNumber('');
-      setDescription('');
+resetForm();
 
-      setSelectedOrganisation(null);
-      setSelectedFundingAgreement(null);
-
-      setShowOrganisationList(false);
-      setShowFundingList(false);
+setErrors({
+  caseNumber: '',
+  organisation: '',
+  fundingAgreement: '',
+  description: '',
+});
 
       setErrors({
         caseNumber: '',
@@ -655,51 +643,175 @@ export default function CasesScreen() {
     >
       <SafeAreaView style={styles.safeArea}>
         <StatusBar
-          barStyle="light-content"
-          backgroundColor="#111111"
+          barStyle="dark-content"
+          backgroundColor="#FFFFFF"
         />
 
         <ScrollView
+          style={styles.container}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={refresh}
+              tintColor="#D97706"
+              colors={['#D97706']}
             />
           }
         >
           {/* SOUTH AFRICAN FLAG STRIP */}
-
           <View style={styles.flagStrip}>
-            <View style={styles.black} />
-            <View style={styles.gold} />
-            <View style={styles.green} />
-            <View style={styles.blue} />
-            <View style={styles.red} />
+            <View
+              style={[
+                styles.flagSection,
+                styles.flagRed,
+              ]}
+            />
+
+            <View
+              style={[
+                styles.flagSection,
+                styles.flagWhite,
+              ]}
+            />
+
+            <View
+              style={[
+                styles.flagSection,
+                styles.flagGreen,
+              ]}
+            />
+
+            <View
+              style={[
+                styles.flagSection,
+                styles.flagGold,
+              ]}
+            />
+
+            <View
+              style={[
+                styles.flagSection,
+                styles.flagBlue,
+              ]}
+            />
+
+            <View
+              style={[
+                styles.flagSection,
+                styles.flagBlack,
+              ]}
+            />
           </View>
 
-          {/* HEADER */}
+{/* HEADER */}
 
-          <View style={styles.header}>
+          {/* GOVERNMENT HEADER */}
+          <View
+            style={[
+              styles.topHeader,
+              isDesktop && styles.topHeaderTablet,
+            ]}
+          >
+            <View style={styles.brandArea}>
+              <View style={styles.coatContainer}>
+                <Text style={styles.coatPlaceholder}>SA</Text>
+              </View>
+
+              <View style={styles.brandText}>
+                <Text style={styles.brandTitle}>REPUBLIC OF SOUTH AFRICA</Text>
+
+                <Text style={styles.departmentText}>DEPARTMENT OF SPORT, ARTS AND CULTURE</Text>
+
+                <Text style={styles.republicText}>GOVERNMENT OF SOUTH AFRICA</Text>
+              </View>
+            </View>
+
+            <View style={styles.sloganArea}>
+              <Text style={styles.slogan}>Inspiring a Nation through Sport, Arts and Culture</Text>
+
+              <View style={styles.sloganLine} />
+            </View>
+
+            <View style={styles.userArea}>
+              <Text style={styles.userSmall}>SIGNED IN AS</Text>
+
+              <Text style={styles.userRole}>DSAC ADMIN</Text>
+
+              <Text style={styles.userEmail} numberOfLines={1}>
+                {user?.email || 'Administrator'}
+              </Text>
+
+              <Pressable
+                style={({ pressed }) => [styles.dashboardButton, pressed && styles.dashboardButtonPressed]}
+                onPress={() => router.replace('/dsac/dashboard')}
+              >
+                <Text style={styles.dashboardButtonText}>DASHBOARD</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* CIVITRACK SYSTEM BAR */}
+          <View style={styles.systemBar}>
+            <View>
+              <Text style={styles.systemName}>CIVITRACK</Text>
+
+              <Text style={styles.systemDescription}>DIGITAL GOVERNMENT ACCOUNTABILITY PLATFORM</Text>
+            </View>
+
+            <View style={styles.systemRight}>
+              <View style={styles.flagMini}>
+                <View style={styles.miniRed} />
+                <View style={styles.miniGreen} />
+                <View style={styles.miniBlue} />
+              </View>
+
+              <View style={styles.statusBox}>
+                <View style={styles.statusDot} />
+
+                <Text style={styles.statusLabel}>SYSTEM STATUS</Text>
+
+                <Text style={styles.statusValue}>OPERATIONAL</Text>
+              </View>
+            </View>
+          </View>
+
+          {/* NAVIGATION */}
+          <View style={styles.navigation}>
             <Pressable
+              style={styles.navItem}
               onPress={() =>
                 router.replace(
                   '/dsac/dashboard'
                 )
               }
             >
-              <Text style={styles.back}>
-                ← Dashboard
+              <Text style={styles.navText}>
+                HOME
               </Text>
             </Pressable>
 
-            <View>
-              <Text style={styles.brand}>
-                CIVITRACK
+            <Pressable
+              style={styles.navItem}
+              onPress={() =>
+                router.replace(
+                  '/dsac/funding-agreements'
+                )
+              }
+            >
+              <Text style={styles.navText}>
+                FUNDING
               </Text>
+            </Pressable>
 
-              <Text style={styles.subtitle}>
-                DSAC Accountability Cases
+<View style={[styles.navItem, styles.navActive]}>
+              <Text
+                style={styles.navActiveText}
+              >
+                {/* active nav label */}
               </Text>
+              <Text style={styles.subtitle}>DSAC Accountability Cases</Text>
             </View>
           </View>
 
@@ -707,32 +819,114 @@ export default function CasesScreen() {
             {/* PAGE HEADING */}
 
             <View style={styles.heading}>
-              <View
+              <Text
                 style={
-                  styles.headingContent
+                  styles.navActiveText
                 }
               >
-                <Text style={styles.title}>
-                  Accountability Cases
+                ACCOUNTABILITY
+              </Text>
+            </View>
+
+            <Pressable
+              style={styles.navItem}
+              onPress={() =>
+                router.replace(
+                  '/dsac/organisations'
+                )
+              }
+            >
+              <Text style={styles.navText}>
+                ORGANISATIONS
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* MAIN */}
+          <View
+            style={[
+              styles.main,
+              isDesktop &&
+                styles.mainTablet,
+            ]}
+          >
+            {/* BREADCRUMB */}
+            <View style={styles.breadcrumb}>
+              <Pressable
+                onPress={() =>
+                  router.replace(
+                    '/dsac/dashboard'
+                  )
+                }
+              >
+                <Text
+                  style={
+                    styles.breadcrumbHome
+                  }
+                >
+                  HOME
+                </Text>
+              </Pressable>
+
+              <Text
+                style={
+                  styles.breadcrumbSlash
+                }
+              >
+                /
+              </Text>
+
+              <Text
+                style={
+                  styles.breadcrumbCurrent
+                }
+              >
+                ACCOUNTABILITY
+              </Text>
+            </View>
+
+            {/* PAGE HEADER */}
+            <View
+              style={[
+                styles.pageHeader,
+                isDesktop &&
+                  styles.pageHeaderTablet,
+              ]}
+            >
+              <View
+                style={
+                  styles.pageHeadingLeft
+                }
+              >
+                <View
+                  style={
+                    styles.orangeHeadingLine
+                  }
+                />
+
+                <Text style={styles.pageTitle}>
+                  ACCOUNTABILITY CASES
                 </Text>
 
                 <Text
                   style={
-                    styles.description
+                    styles.pageDescription
                   }
                 >
-                  Create, assign and monitor
-                  accountability cases linked
-                  to funding agreements.
+                  Create, monitor and manage
+                  accountability cases linked to
+                  organisations and funding agreements.
                 </Text>
               </View>
 
               <Pressable
-                style={styles.createButton}
+                style={({ pressed }) => [
+                  styles.createButton,
+                  pressed &&
+                    styles.createButtonPressed,
+                ]}
                 onPress={() =>
-                  setShowForm(
-                    !showForm
-                  )
+                  setShowForm(!showForm)
                 }
               >
                 <Text
@@ -740,221 +934,640 @@ export default function CasesScreen() {
                     styles.createButtonText
                   }
                 >
-                  + CREATE CASE
+                  {showForm
+                    ? '− CLOSE FORM'
+                    : '+ CREATE CASE'}
                 </Text>
               </Pressable>
             </View>
 
             {/* CREATE CASE FORM */}
-
             {showForm && (
-              <View style={styles.form}>
-                <View style={styles.formTop} />
-
-                <Text
-                  style={styles.formTitle}
+              <>
+                <View
+                  style={
+                    styles.sectionHeader
+                  }
                 >
-                  Create Accountability Case
+                  <View
+                    style={
+                      styles.sectionOrangeBar
+                    }
+                  />
+
+                  <View>
+                    <Text
+                      style={
+                        styles.sectionTitle
+                      }
+                    >
+                      CREATE ACCOUNTABILITY CASE
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.sectionSubtitle
+                      }
+                    >
+                      Create a case and link it to the
+                      relevant organisation and funding agreement.
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.formCard}>
+                  <View
+                    style={styles.formHeader}
+                  >
+                    <View
+                      style={
+                        styles.formHeaderAccent
+                      }
+                    />
+
+                    <Text
+                      style={
+                        styles.formTitle
+                      }
+                    >
+                      CASE DETAILS
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.formDescription
+                      }
+                    >
+                      A case becomes the main accountability
+                      workspace for an organisation.
+                    </Text>
+                  </View>
+
+                  <View
+                    style={[
+                      styles.formGrid,
+                      isDesktop && {
+                        flexDirection:
+                          'row',
+                        flexWrap:
+                          'wrap',
+                      },
+                    ]}
+                  >
+                    {/* CASE NUMBER */}
+                    <View
+                      style={[
+                        styles.fieldFull,
+                        isDesktop &&
+                          styles.fieldHalf,
+                      ]}
+                    >
+                      <Text
+                        style={
+                          styles.label
+                        }
+                      >
+                        CASE NUMBER *
+                      </Text>
+
+                      <TextInput
+                        style={
+                          styles.input
+                        }
+                        placeholder="e.g. DSAC-CASE-2026-001"
+                        placeholderTextColor="#9CA3AF"
+                        value={
+                          caseNumber
+                        }
+                        onChangeText={
+                          setCaseNumber
+                        }
+                        autoCapitalize="characters"
+                      />
+                    </View>
+
+                    {/* ORGANISATION */}
+                    <View
+                      style={[
+                        styles.fieldFull,
+                        isDesktop &&
+                          styles.fieldHalf,
+                      ]}
+                    >
+                      <Text
+                        style={
+                          styles.label
+                        }
+                      >
+                        ORGANISATION *
+                      </Text>
+
+                      <Pressable
+                        style={[
+                          styles.selectInput,
+                          showOrganisationList &&
+                            styles.selectInputActive,
+                        ]}
+                        onPress={() =>
+                          setShowOrganisationList(
+                            !showOrganisationList
+                          )
+                        }
+                      >
+                        <Text
+                          style={
+                            selectedOrganisation
+                              ? styles.selectText
+                              : styles.placeholderText
+                          }
+                        >
+                          {selectedOrganisation
+                            ? selectedOrganisation.name
+                            : 'Select organisation'}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.selectArrow
+                          }
+                        >
+                          {showOrganisationList
+                            ? '▲'
+                            : '▼'}
+                        </Text>
+                      </Pressable>
+
+                      {showOrganisationList && (
+                        <View
+                          style={
+                            styles.dropdown
+                          }
+                        >
+                          {organisations.length ===
+                          0 ? (
+                            <Text
+                              style={
+                                styles.dropdownEmpty
+                              }
+                            >
+                              No organisations available.
+                            </Text>
+                          ) : (
+                            organisations.map(
+                              (
+                                organisation
+                              ) => (
+                                <Pressable
+                                  key={
+                                    organisation.id
+                                  }
+                                  style={
+                                    styles.dropdownItem
+                                  }
+                                  onPress={() =>
+                                    selectOrganisation(
+                                      organisation
+                                    )
+                                  }
+                                >
+                                  <Text
+                                    style={
+                                      styles.dropdownItemTitle
+                                    }
+                                  >
+                                    {
+                                      organisation.name
+                                    }
+                                  </Text>
+
+                                  <Text
+                                    style={
+                                      styles.dropdownItemSubtitle
+                                    }
+                                  >
+                                    {
+                                      organisation.organisation_type
+                                    }
+
+                                    {organisation.registration_number
+                                      ? ` • ${organisation.registration_number}`
+                                      : ''}
+                                  </Text>
+                                </Pressable>
+                              )
+                            )
+                          )}
+                        </View>
+                      )}
+                    </View>
+
+                    {/* FUNDING AGREEMENT */}
+                    <View
+                      style={[
+                        styles.fieldFull,
+                        isDesktop &&
+                          styles.fieldHalf,
+                      ]}
+                    >
+                      <Text
+                        style={
+                          styles.label
+                        }
+                      >
+                        FUNDING AGREEMENT *
+                      </Text>
+
+                      <Pressable
+                        style={[
+                          styles.selectInput,
+                          !selectedOrganisation &&
+                            styles.disabledInput,
+                          showFundingList &&
+                            styles.selectInputActive,
+                        ]}
+                        disabled={
+                          !selectedOrganisation
+                        }
+                        onPress={() =>
+                          setShowFundingList(
+                            !showFundingList
+                          )
+                        }
+                      >
+                        <Text
+                          style={
+                            selectedFundingAgreement
+                              ? styles.selectText
+                              : styles.placeholderText
+                          }
+                          numberOfLines={2}
+                        >
+                          {selectedFundingAgreement
+                            ? `${selectedFundingAgreement.agreement_number} — ${selectedFundingAgreement.title || 'Funding Agreement'}`
+                            : selectedOrganisation
+                            ? 'Select funding agreement'
+                            : 'Select an organisation first'}
+                        </Text>
+
+                        <Text
+                          style={
+                            styles.selectArrow
+                          }
+                        >
+                          {selectedOrganisation
+                            ? showFundingList
+                              ? '▲'
+                              : '▼'
+                            : ''}
+                        </Text>
+                      </Pressable>
+
+                      {showFundingList &&
+                        selectedOrganisation && (
+                          <View
+                            style={
+                              styles.dropdown
+                            }
+                          >
+                            {filteredFundingAgreements.length ===
+                            0 ? (
+                              <Text
+                                style={
+                                  styles.dropdownEmpty
+                                }
+                              >
+                                No funding agreements found
+                                for this organisation.
+                              </Text>
+                            ) : (
+                              filteredFundingAgreements.map(
+                                (
+                                  agreement
+                                ) => (
+                                  <Pressable
+                                    key={
+                                      agreement.id
+                                    }
+                                    style={
+                                      styles.dropdownItem
+                                    }
+                                    onPress={() =>
+                                      selectFundingAgreement(
+                                        agreement
+                                      )
+                                    }
+                                  >
+                                    <Text
+                                      style={
+                                        styles.dropdownItemTitle
+                                      }
+                                    >
+                                      {
+                                        agreement.agreement_number
+                                      }
+                                    </Text>
+
+                                    <Text
+                                      style={
+                                        styles.dropdownItemSubtitle
+                                      }
+                                    >
+                                      {agreement.title ||
+                                        'Funding Agreement'}
+
+                                      {agreement.allocated_amount !==
+                                      null
+                                        ? ` • ${
+                                            agreement.currency ||
+                                            'ZAR'
+                                          } ${Number(
+                                            agreement.allocated_amount
+                                          ).toLocaleString(
+                                            'en-ZA'
+                                          )}`
+                                        : ''}
+                                    </Text>
+                                  </Pressable>
+                                )
+                              )
+                            )}
+                          </View>
+                        )}
+                    </View>
+
+                    {/* DESCRIPTION */}
+                    <View
+                      style={
+                        styles.fieldFull
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.label
+                        }
+                      >
+                        CASE DESCRIPTION *
+                      </Text>
+
+                      <TextInput
+                        style={[
+                          styles.input,
+                          styles.textArea,
+                        ]}
+                        placeholder="Describe the accountability requirements..."
+                        placeholderTextColor="#9CA3AF"
+                        value={
+                          description
+                        }
+                        onChangeText={
+                          setDescription
+                        }
+                        multiline
+                        textAlignVertical="top"
+                      />
+                    </View>
+                  </View>
+
+                  {/* WORKFLOW NOTICE */}
+                  <View
+                    style={
+                      styles.workflowNotice
+                    }
+                  >
+                    <View
+                      style={
+                        styles.workflowNoticeAccent
+                      }
+                    />
+
+                    <View
+                      style={
+                        styles.workflowNoticeContent
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.workflowNoticeTitle
+                        }
+                      >
+                        ACCOUNTABILITY WORKFLOW
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.workflowNoticeText
+                        }
+                      >
+                        Organisation → Funding Agreement →
+                        Accountability Case
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.workflowNoticeDescription
+                        }
+                      >
+                        The selected funding agreement must belong
+                        to the selected organisation.
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* ACTIONS */}
+                  <View
+                    style={
+                      styles.formActions
+                    }
+                  >
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.cancelButton,
+                        pressed &&
+                          styles.cancelPressed,
+                      ]}
+                      onPress={() => {
+                        resetForm();
+                        setShowForm(false);
+                      }}
+                      disabled={saving}
+                    >
+                      <Text
+                        style={
+                          styles.cancelText
+                        }
+                      >
+                        CANCEL
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.saveButton,
+                        saving &&
+                          styles.saveDisabled,
+                        pressed &&
+                          !saving && {
+                            opacity: 0.85,
+                          },
+                      ]}
+                      onPress={
+                        createCase
+                      }
+                      disabled={saving}
+                    >
+                      {saving ? (
+                        <>
+                          <ActivityIndicator
+                            size="small"
+                            color="#FFFFFF"
+                          />
+
+                          <Text
+                            style={
+                              styles.savingText
+                            }
+                          >
+                            CREATING...
+                          </Text>
+                        </>
+                      ) : (
+                        <Text
+                          style={
+                            styles.saveText
+                          }
+                        >
+                          CREATE CASE
+                        </Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              </>
+            )}
+
+            {/* INFORMATION CARD */}
+            <View style={styles.infoCard}>
+              <View style={styles.infoAccent} />
+
+              <View style={styles.infoIcon}>
+                <Text
+                  style={
+                    styles.infoIconText
+                  }
+                >
+                  i
+                </Text>
+              </View>
+
+              <View
+                style={
+                  styles.infoContent
+                }
+              >
+                <Text
+                  style={
+                    styles.infoTitle
+                  }
+                >
+                  ACCOUNTABILITY MANAGEMENT
                 </Text>
 
                 <Text
                   style={
-                    styles.formDescription
+                    styles.infoText
                   }
                 >
-                  A case becomes the main
-                  accountability workspace
-                  for an organisation.
+                  Accountability cases provide a structured
+                  workspace for monitoring compliance, actions
+                  and accountability requirements associated
+                  with DSAC funding agreements.
                 </Text>
 
                 {/* CASE NUMBER */}
 
-                <Text style={styles.label}>
-                  CASE NUMBER *
-                </Text>
+                <Text style={styles.label}>CASE NUMBER *</Text>
 
                 <TextInput
                   style={[
                     styles.input,
-                    errors.caseNumber &&
-                      styles.inputError,
+                    errors.caseNumber && styles.inputError,
                   ]}
                   placeholder="e.g. DSAC-CASE-2026-001"
                   placeholderTextColor="#888888"
                   value={caseNumber}
-                  onChangeText={
-                    handleCaseNumberChange
-                  }
+                  onChangeText={handleCaseNumberChange}
                   autoCapitalize="characters"
                   autoCorrect={false}
                   maxLength={30}
                 />
 
                 {errors.caseNumber ? (
-                  <Text
-                    style={
-                      styles.errorText
-                    }
-                  >
-                    {errors.caseNumber}
-                  </Text>
+                  <Text style={styles.errorText}>{errors.caseNumber}</Text>
                 ) : (
-                  <Text
-                    style={
-                      styles.helperText
-                    }
-                  >
-                    Format: DSAC-CASE-YYYY-001
-                  </Text>
+                  <Text style={styles.helperText}>Format: DSAC-CASE-YYYY-001</Text>
                 )}
 
                 {/* ORGANISATION */}
 
-                <Text style={styles.label}>
-                  ORGANISATION *
-                </Text>
+                <Text style={styles.label}>ORGANISATION *</Text>
 
                 <Pressable
                   style={[
                     styles.selectInput,
-                    showOrganisationList &&
-                      styles.selectInputActive,
-                    errors.organisation &&
-                      styles.inputError,
+                    showOrganisationList && styles.selectInputActive,
+                    errors.organisation && styles.inputError,
                   ]}
-                  onPress={() =>
-                    setShowOrganisationList(
-                      !showOrganisationList
-                    )
-                  }
+                  onPress={() => setShowOrganisationList(!showOrganisationList)}
                 >
-                  <Text
-                    style={
-                      selectedOrganisation
-                        ? styles.selectText
-                        : styles.placeholderText
-                    }
-                  >
-                    {selectedOrganisation
-                      ? selectedOrganisation.name
-                      : 'Select organisation'}
+                  <Text style={selectedOrganisation ? styles.selectText : styles.placeholderText}>
+                    {selectedOrganisation ? selectedOrganisation.name : 'Select organisation'}
                   </Text>
 
-                  <Text
-                    style={
-                      styles.selectArrow
-                    }
-                  >
-                    {showOrganisationList
-                      ? '▲'
-                      : '▼'}
-                  </Text>
+                  <Text style={styles.selectArrow}>{showOrganisationList ? '▲' : '▼'}</Text>
                 </Pressable>
 
                 {errors.organisation && (
-                  <Text
-                    style={
-                      styles.errorText
-                    }
-                  >
-                    {errors.organisation}
-                  </Text>
+                  <Text style={styles.errorText}>{errors.organisation}</Text>
                 )}
 
                 {showOrganisationList && (
-                  <View
-                    style={
-                      styles.dropdown
-                    }
-                  >
-                    {organisations.length ===
-                    0 ? (
-                      <Text
-                        style={
-                          styles.dropdownEmpty
-                        }
-                      >
-                        No organisations
-                        available.
-                      </Text>
+                  <View style={styles.dropdown}>
+                    {organisations.length === 0 ? (
+                      <Text style={styles.dropdownEmpty}>No organisations available.</Text>
                     ) : (
-                      organisations.map(
-                        (
-                          organisation
-                        ) => (
-                          <Pressable
-                            key={
-                              organisation.id
-                            }
-                            style={
-                              styles.dropdownItem
-                            }
-                            onPress={() =>
-                              selectOrganisation(
-                                organisation
-                              )
-                            }
-                          >
-                            <Text
-                              style={
-                                styles.dropdownItemTitle
-                              }
-                            >
-                              {
-                                organisation.name
-                              }
-                            </Text>
+                      organisations.map((organisation) => (
+                        <Pressable
+                          key={organisation.id}
+                          style={styles.dropdownItem}
+                          onPress={() => selectOrganisation(organisation)}
+                        >
+                          <Text style={styles.dropdownItemTitle}>{organisation.name}</Text>
 
-                            <Text
-                              style={
-                                styles.dropdownItemSubtitle
-                              }
-                            >
-                              {
-                                organisation.organisation_type
-                              }
+                          <Text style={styles.dropdownItemSubtitle}>
+                            {organisation.organisation_type}
 
-                              {organisation.registration_number
-                                ? ` • ${organisation.registration_number}`
-                                : ''}
-                            </Text>
-                          </Pressable>
-                        )
-                      )
+                            {organisation.registration_number ? ` • ${organisation.registration_number}` : ''}
+                          </Text>
+                        </Pressable>
+                      ))
                     )}
                   </View>
                 )}
 
                 {/* FUNDING AGREEMENT */}
 
-                <Text style={styles.label}>
-                  FUNDING AGREEMENT *
-                </Text>
+                <Text style={styles.label}>FUNDING AGREEMENT *</Text>
 
                 <Pressable
                   style={[
                     styles.selectInput,
-                    !selectedOrganisation &&
-                      styles.disabledInput,
-                    errors.fundingAgreement &&
-                      styles.inputError,
+                    !selectedOrganisation && styles.disabledInput,
+                    errors.fundingAgreement && styles.inputError,
                   ]}
-                  disabled={
-                    !selectedOrganisation
-                  }
-                  onPress={() =>
-                    setShowFundingList(
-                      !showFundingList
-                    )
-                  }
+                  disabled={!selectedOrganisation}
+                  onPress={() => setShowFundingList(!showFundingList)}
                 >
-                  <Text
-                    style={
-                      selectedFundingAgreement
-                        ? styles.selectText
-                        : styles.placeholderText
-                    }
-                  >
+                  <Text style={selectedFundingAgreement ? styles.selectText : styles.placeholderText}>
                     {selectedFundingAgreement
                       ? `${selectedFundingAgreement.agreement_number} — ${selectedFundingAgreement.title || 'Funding Agreement'}`
                       : selectedOrganisation
@@ -962,213 +1575,127 @@ export default function CasesScreen() {
                       : 'Select an organisation first'}
                   </Text>
 
-                  <Text
-                    style={
-                      styles.selectArrow
-                    }
-                  >
-                    {selectedOrganisation
-                      ? showFundingList
-                        ? '▲'
-                        : '▼'
-                      : ''}
+                  <Text style={styles.selectArrow}>
+                    {selectedOrganisation ? (showFundingList ? '▲' : '▼') : ''}
                   </Text>
                 </Pressable>
 
                 {errors.fundingAgreement && (
-                  <Text
-                    style={
-                      styles.errorText
-                    }
-                  >
-                    {
-                      errors.fundingAgreement
-                    }
-                  </Text>
+                  <Text style={styles.errorText}>{errors.fundingAgreement}</Text>
                 )}
 
-                {showFundingList &&
-                  selectedOrganisation && (
-                    <View
-                      style={
-                        styles.dropdown
-                      }
-                    >
-                      {filteredFundingAgreements.length ===
-                      0 ? (
-                        <Text
-                          style={
-                            styles.dropdownEmpty
-                          }
+                {showFundingList && selectedOrganisation && (
+                  <View style={styles.dropdown}>
+                    {filteredFundingAgreements.length === 0 ? (
+                      <Text style={styles.dropdownEmpty}>No funding agreements found for this organisation.</Text>
+                    ) : (
+                      filteredFundingAgreements.map((agreement) => (
+                        <Pressable
+                          key={agreement.id}
+                          style={styles.dropdownItem}
+                          onPress={() => selectFundingAgreement(agreement)}
                         >
-                          No funding agreements
-                          found for this
-                          organisation.
-                        </Text>
-                      ) : (
-                        filteredFundingAgreements.map(
-                          (
-                            agreement
-                          ) => (
-                            <Pressable
-                              key={
-                                agreement.id
-                              }
-                              style={
-                                styles.dropdownItem
-                              }
-                              onPress={() =>
-                                selectFundingAgreement(
-                                  agreement
-                                )
-                              }
-                            >
-                              <Text
-                                style={
-                                  styles.dropdownItemTitle
-                                }
-                              >
-                                {
-                                  agreement.agreement_number
-                                }
-                              </Text>
+                          <Text style={styles.dropdownItemTitle}>{agreement.agreement_number}</Text>
 
-                              <Text
-                                style={
-                                  styles.dropdownItemSubtitle
-                                }
-                              >
-                                {agreement.title ||
-                                  'Funding Agreement'}
+                          <Text style={styles.dropdownItemSubtitle}>
+                            {agreement.title || 'Funding Agreement'}
 
-                                {agreement.allocated_amount !==
-                                null
-                                  ? ` • ${agreement.currency || 'ZAR'} ${Number(
-                                      agreement.allocated_amount
-                                    ).toLocaleString(
-                                      'en-ZA'
-                                    )}`
-                                  : ''}
-                              </Text>
-                            </Pressable>
-                          )
-                        )
-                      )}
-                    </View>
-                  )}
+                            {agreement.allocated_amount !== null
+                              ? ` • ${agreement.currency || 'ZAR'} ${Number(agreement.allocated_amount).toLocaleString('en-ZA')}`
+                              : ''}
+                          </Text>
+                        </Pressable>
+                      ))
+                    )}
+                  </View>
+                )}
 
                 {/* DESCRIPTION */}
 
-                <Text style={styles.label}>
-                  CASE DESCRIPTION *
-                </Text>
+                <Text style={styles.label}>CASE DESCRIPTION *</Text>
 
                 <TextInput
-                  style={[
-                    styles.input,
-                    styles.textArea,
-                    errors.description &&
-                      styles.inputError,
-                  ]}
+                  style={[styles.input, styles.textArea, errors.description && styles.inputError]}
                   placeholder="Describe the accountability requirements..."
                   placeholderTextColor="#888888"
                   value={description}
-                  onChangeText={
-                    handleDescriptionChange
-                  }
+                  onChangeText={handleDescriptionChange}
                   multiline
                   textAlignVertical="top"
                   maxLength={2000}
                 />
 
-                <View
-                  style={
-                    styles.descriptionFooter
-                  }
-                >
+                <View style={styles.descriptionFooter}>
                   {errors.description ? (
-                    <Text
-                      style={
-                        styles.errorText
-                      }
-                    >
-                      {errors.description}
-                    </Text>
+                    <Text style={styles.errorText}>{errors.description}</Text>
                   ) : (
-                    <Text
-                      style={
-                        styles.helperText
-                      }
-                    >
-                      Minimum 20 characters.
-                    </Text>
+                    <Text style={styles.helperText}>Minimum 20 characters.</Text>
                   )}
 
-                  <Text
-                    style={
-                      styles.characterCount
-                    }
-                  >
-                    {description.length}/2000
-                  </Text>
+                  <Text style={styles.characterCount}>{description.length}/2000</Text>
                 </View>
 
                 {/* ACTION BUTTONS */}
 
                 <View style={styles.actions}>
-                  <Pressable
-                    style={styles.cancel}
-                    onPress={cancelForm}
-                    disabled={saving}
-                  >
-                    <Text
-                      style={
-                        styles.cancelText
-                      }
-                    >
-                      CANCEL
-                    </Text>
+                  <Pressable style={styles.cancel} onPress={cancelForm} disabled={saving}>
+                    <Text style={styles.cancelText}>CANCEL</Text>
                   </Pressable>
 
-                  <Pressable
-                    style={[
-                      styles.save,
-                      saving &&
-                        styles.saveDisabled,
-                    ]}
-                    onPress={createCase}
-                    disabled={saving}
-                  >
+                  <Pressable style={[styles.save, saving && styles.saveDisabled]} onPress={createCase} disabled={saving}>
                     {saving ? (
-                      <ActivityIndicator
-                        size="small"
-                        color="#FFFFFF"
-                      />
+                      <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
-                      <Text
-                        style={
-                          styles.saveText
-                        }
-                      >
-                        CREATE CASE
-                      </Text>
+                      <Text style={styles.saveText}>CREATE CASE</Text>
                     )}
                   </Pressable>
                 </View>
+
               </View>
-            )}
+            </View>
+
+            {/* STATISTICS */}
+            <View
+              style={
+                styles.sectionHeader
+              }
+            >
+              <View
+                style={
+                  styles.sectionOrangeBar
+                }
+              />
+
+              <View>
+                <Text
+                  style={
+                    styles.sectionTitle
+                  }
+                >
+                  CASE STATUS OVERVIEW
+                </Text>
+
+                <Text
+                  style={
+                    styles.sectionSubtitle
+                  }
+                >
+                  Current accountability case status across CIVITRACK.
+                </Text>
+              </View>
+            </View>
 
             {/* LOADING */}
 
             {loading ? (
               <View
                 style={
-                  styles.loadingContainer
+                  styles.loadingState
                 }
               >
                 <ActivityIndicator
                   size="large"
-                  color="#007A4D"
+                  color="#D97706"
                 />
 
                 <Text
@@ -1176,8 +1703,7 @@ export default function CasesScreen() {
                     styles.loadingText
                   }
                 >
-                  Loading accountability
-                  cases...
+                  Loading accountability cases...
                 </Text>
               </View>
             ) : (
@@ -1185,25 +1711,38 @@ export default function CasesScreen() {
                 {/* STATUS CARDS */}
 
                 <View
-                  style={styles.statusGrid}
+                  style={[
+                    styles.statusGrid,
+                    isDesktop &&
+                      styles.statusGridDesktop,
+                  ]}
                 >
                   <StatusCard
                     label="DRAFT"
-                    number={stats.DRAFT}
+                    number={
+                      stats.DRAFT
+                    }
+                    accent="#777777"
                   />
 
                   <StatusCard
                     label="IN PROGRESS"
                     number={
-                      stats['IN PROGRESS']
+                      stats[
+                        'IN PROGRESS'
+                      ]
                     }
+                    accent="#007A4D"
                   />
 
                   <StatusCard
                     label="UNDER REVIEW"
                     number={
-                      stats['UNDER REVIEW']
+                      stats[
+                        'UNDER REVIEW'
+                      ]
                     }
+                    accent="#003DA5"
                   />
 
                   <StatusCard
@@ -1213,6 +1752,7 @@ export default function CasesScreen() {
                         'ACTION REQUIRED'
                       ]
                     }
+                    accent="#D97706"
                   />
 
                   <StatusCard
@@ -1220,31 +1760,55 @@ export default function CasesScreen() {
                     number={
                       stats.APPROVED
                     }
+                    accent="#007A4D"
                   />
                 </View>
 
-                {/* CASES */}
-
-                <Text
+                {/* CASE LIST */}
+                <View
                   style={
-                    styles.sectionTitle
+                    styles.sectionHeader
                   }
                 >
-                  ACCOUNTABILITY CASES
-                </Text>
+                  <View
+                    style={
+                      styles.sectionOrangeBar
+                    }
+                  />
+
+                  <View>
+                    <Text
+                      style={
+                        styles.sectionTitle
+                      }
+                    >
+                      ACCOUNTABILITY CASES
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.sectionSubtitle
+                      }
+                    >
+                      Select a case to view its full accountability workspace.
+                    </Text>
+                  </View>
+                </View>
 
                 {cases.length === 0 ? (
                   <View
-                    style={styles.empty}
+                    style={
+                      styles.emptyState
+                    }
                   >
                     <View
                       style={
-                        styles.caseIcon
+                        styles.emptyIcon
                       }
                     >
                       <Text
                         style={
-                          styles.caseIconText
+                          styles.emptyIconText
                         }
                       >
                         C
@@ -1256,7 +1820,7 @@ export default function CasesScreen() {
                         styles.emptyTitle
                       }
                     >
-                      No accountability cases
+                      NO ACCOUNTABILITY CASES
                     </Text>
 
                     <Text
@@ -1264,10 +1828,8 @@ export default function CasesScreen() {
                         styles.emptyText
                       }
                     >
-                      Create a case after an
-                      organisation and
-                      funding agreement have
-                      been established.
+                      Create a case after an organisation
+                      and funding agreement have been established.
                     </Text>
 
                     <View
@@ -1315,6 +1877,25 @@ export default function CasesScreen() {
                         Accountability Case
                       </Text>
                     </View>
+
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.emptyButton,
+                        pressed &&
+                          styles.emptyButtonPressed,
+                      ]}
+                      onPress={() =>
+                        setShowForm(true)
+                      }
+                    >
+                      <Text
+                        style={
+                          styles.emptyButtonText
+                        }
+                      >
+                        CREATE FIRST CASE
+                      </Text>
+                    </Pressable>
                   </View>
                 ) : (
                   <View
@@ -1325,8 +1906,12 @@ export default function CasesScreen() {
                     {cases.map(
                       (item) => (
                         <CaseCard
-                          key={item.id}
-                          item={item}
+                          key={
+                            item.id
+                          }
+                          item={
+                            item
+                          }
                         />
                       )
                     )}
@@ -1334,6 +1919,91 @@ export default function CasesScreen() {
                 )}
               </>
             )}
+          </View>
+
+          {/* FOOTER */}
+          <View style={styles.footer}>
+            <View
+              style={
+                styles.footerFlag
+              }
+            >
+              <View
+                style={
+                  styles.footerRed
+                }
+              />
+
+              <View
+                style={
+                  styles.footerGreen
+                }
+              />
+
+              <View
+                style={
+                  styles.footerBlue
+                }
+              />
+
+              <View
+                style={
+                  styles.footerGold
+                }
+              />
+            </View>
+
+            <View
+              style={
+                styles.footerContent
+              }
+            >
+              <Text
+                style={
+                  styles.footerTitle
+                }
+              >
+                REPUBLIC OF SOUTH AFRICA
+              </Text>
+
+              <Text
+                style={
+                  styles.footerDepartment
+                }
+              >
+                DEPARTMENT OF SPORT, ARTS AND CULTURE
+              </Text>
+
+              <Text
+                style={
+                  styles.footerRepublic
+                }
+              >
+                Digital Government Accountability Platform
+              </Text>
+
+              <View
+                style={
+                  styles.footerLine
+                }
+              />
+
+              <Text
+                style={
+                  styles.footerSystem
+                }
+              >
+                CIVITRACK • ACCOUNTABILITY MANAGEMENT
+              </Text>
+
+              <Text
+                style={
+                  styles.footerCopyright
+                }
+              >
+                © {new Date().getFullYear()} Government of South Africa
+              </Text>
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -1348,17 +2018,30 @@ export default function CasesScreen() {
 function StatusCard({
   label,
   number,
+  accent,
 }) {
   return (
-    <View style={styles.statusCard}>
+    <View
+      style={[
+        styles.statusCard,
+        {
+          borderTopColor:
+            accent,
+        },
+      ]}
+    >
       <Text
-        style={styles.statusLabel}
+        style={
+          styles.statusLabel
+        }
       >
         {label}
       </Text>
 
       <Text
-        style={styles.statusNumber}
+        style={
+          styles.statusNumber
+        }
       >
         {number}
       </Text>
@@ -1380,106 +2063,200 @@ function CaseCard({ item }) {
       ?.agreement_number ||
     'Funding Agreement';
 
+  const statusStyle =
+    getStatusStyle(
+      item.status
+    );
+
   return (
     <Pressable
-      style={styles.caseCard}
+      style={({ pressed }) => [
+        styles.caseCard,
+        pressed &&
+          styles.caseCardPressed,
+      ]}
       onPress={() =>
         router.push(
           `/cases/${item.id}`
         )
       }
     >
-      <View style={styles.caseCardHeader}>
-        <View
-          style={
-            styles.caseCardHeading
-          }
-        >
-          <Text
-            style={
-              styles.caseNumber
-            }
-          >
-            {item.case_number}
-          </Text>
-
-          <Text
-            style={
-              styles.caseTitle
-            }
-          >
-            {item.title ||
-              'Accountability Case'}
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.statusBadge,
-            getStatusStyle(
-              item.status
-            ),
-          ]}
-        >
-          <Text
-            style={
-              styles.statusBadgeText
-            }
-          >
-            {item.status}
-          </Text>
-        </View>
-      </View>
-
-      <Text
-        style={
-          styles.caseDescription
-        }
-        numberOfLines={2}
-      >
-        {item.description ||
-          'No description provided.'}
-      </Text>
+      <View
+        style={[
+          styles.caseCardAccent,
+          statusStyle.accent,
+        ]}
+      />
 
       <View
         style={
-          styles.caseMeta
+          styles.caseCardInner
         }
       >
-        <Text
+        <View
           style={
-            styles.caseMetaText
+            styles.caseCardHeader
           }
         >
-          Organisation: {organisationName}
-        </Text>
+          <View
+            style={
+              styles.caseCardHeading
+            }
+          >
+            <Text
+              style={
+                styles.caseNumber
+              }
+            >
+              {item.case_number}
+            </Text>
+
+            <Text
+              style={
+                styles.caseTitle
+              }
+            >
+              {item.title ||
+                'Accountability Case'}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor:
+                  statusStyle.backgroundColor,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.statusBadgeDot,
+                {
+                  backgroundColor:
+                    statusStyle.dotColor,
+                },
+              ]}
+            />
+
+            <Text
+              style={
+                styles.statusBadgeText
+              }
+            >
+              {item.status}
+            </Text>
+          </View>
+        </View>
 
         <Text
           style={
-            styles.caseMetaText
+            styles.caseDescription
           }
+          numberOfLines={2}
         >
-          Agreement: {agreementNumber}
+          {item.description ||
+            'No description provided.'}
         </Text>
 
-        <Text
+        <View
           style={
-            styles.caseMetaText
+            styles.caseMeta
           }
         >
-          Priority:{' '}
-          {item.priority ||
-            'MEDIUM'}
-        </Text>
+          <View
+            style={
+              styles.caseMetaItem
+            }
+          >
+            <Text
+              style={
+                styles.caseMetaLabel
+              }
+            >
+              ORGANISATION
+            </Text>
+
+            <Text
+              style={
+                styles.caseMetaValue
+              }
+              numberOfLines={1}
+            >
+              {organisationName}
+            </Text>
+          </View>
+
+          <View
+            style={
+              styles.caseMetaItem
+            }
+          >
+            <Text
+              style={
+                styles.caseMetaLabel
+              }
+            >
+              FUNDING AGREEMENT
+            </Text>
+
+            <Text
+              style={
+                styles.caseMetaValue
+              }
+              numberOfLines={1}
+            >
+              {agreementNumber}
+            </Text>
+          </View>
+
+          <View
+            style={
+              styles.caseMetaItem
+            }
+          >
+            <Text
+              style={
+                styles.caseMetaLabel
+              }
+            >
+              PRIORITY
+            </Text>
+
+            <Text
+              style={
+                styles.caseMetaValue
+              }
+            >
+              {item.priority ||
+                'MEDIUM'}
+            </Text>
+          </View>
+        </View>
+
+        <View
+          style={
+            styles.caseCardFooter
+          }
+        >
+          <Text
+            style={
+              styles.viewCase
+            }
+          >
+            VIEW CASE
+          </Text>
+
+          <Text
+            style={
+              styles.viewCaseArrow
+            }
+          >
+            →
+          </Text>
+        </View>
       </View>
-
-      <Text
-        style={
-          styles.viewCase
-        }
-      >
-        VIEW CASE →
-      </Text>
     </Pressable>
   );
 }
@@ -1494,30 +2271,60 @@ function getStatusStyle(status) {
       return {
         backgroundColor:
           '#E8F3EE',
+        dotColor:
+          '#007A4D',
+        accent: {
+          backgroundColor:
+            '#007A4D',
+        },
       };
 
     case 'ACTION REQUIRED':
       return {
         backgroundColor:
           '#FFF3CD',
+        dotColor:
+          '#D97706',
+        accent: {
+          backgroundColor:
+            '#D97706',
+        },
       };
 
     case 'UNDER REVIEW':
       return {
         backgroundColor:
           '#E8F0F7',
+        dotColor:
+          '#003DA5',
+        accent: {
+          backgroundColor:
+            '#003DA5',
+        },
       };
 
     case 'IN PROGRESS':
       return {
         backgroundColor:
           '#E8F3EE',
+        dotColor:
+          '#007A4D',
+        accent: {
+          backgroundColor:
+            '#007A4D',
+        },
       };
 
     default:
       return {
         backgroundColor:
           '#F0F0F0',
+        dotColor:
+          '#777777',
+        accent: {
+          backgroundColor:
+            '#777777',
+        },
       };
   }
 }
@@ -1529,157 +2336,482 @@ function getStatusStyle(status) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F3F3F0',
+    backgroundColor: '#FFFFFF',
   },
+
+  container: {
+    flex: 1,
+    backgroundColor: '#F5F5F5',
+  },
+
+  content: {
+    flexGrow: 1,
+  },
+
+  /* FLAG */
 
   flagStrip: {
-    height: 7,
+    height: 5,
     flexDirection: 'row',
+    width: '100%',
   },
 
-  black: {
+  flagSection: {
     flex: 1,
-    backgroundColor: '#111111',
   },
 
-  gold: {
-    flex: 1,
+  flagRed: {
+    backgroundColor: '#D22B2B',
+  },
+
+  flagWhite: {
+    backgroundColor: '#FFFFFF',
+  },
+
+  flagGreen: {
+    backgroundColor: '#007A4D',
+  },
+
+  flagGold: {
     backgroundColor: '#FFB81C',
   },
 
-  green: {
-    flex: 2,
-    backgroundColor: '#007A4D',
+  flagBlue: {
+    backgroundColor: '#003DA5',
   },
 
-  blue: {
-    flex: 1,
-    backgroundColor: '#001489',
+  flagBlack: {
+    backgroundColor: '#000000',
   },
 
-  red: {
-    flex: 1,
-    backgroundColor: '#DE3831',
+  /* GOVERNMENT HEADER */
+
+  topHeader: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5E5',
   },
 
-  header: {
-    backgroundColor: '#111111',
-    padding: 22,
+  topHeaderTablet: {
+    paddingHorizontal: 45,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
 
-  back: {
-    color: '#FFB81C',
-    fontSize: 12,
-    fontWeight: '800',
+  brandArea: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
 
-  brand: {
-    color: '#FFFFFF',
-    fontSize: 20,
+  coatContainer: {
+    width: 65,
+    height: 65,
+    marginRight: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+  },
+
+  coatPlaceholder: {
+    color: '#777777',
+    fontSize: 16,
     fontWeight: '900',
-    letterSpacing: 1.5,
-    textAlign: 'right',
   },
 
-  subtitle: {
-    color: '#AAAAAA',
+  brandText: {
+    flex: 1,
+  },
+
+  brandTitle: {
+    color: '#222222',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+
+  departmentText: {
+    color: '#555555',
     fontSize: 10,
+    fontWeight: '800',
+    marginTop: 4,
+    letterSpacing: 0.3,
+  },
+
+  republicText: {
+    color: '#888888',
+    fontSize: 9,
+    marginTop: 3,
+    letterSpacing: 0.4,
+  },
+
+  sloganArea: {
+    marginTop: 15,
+    alignItems: 'flex-start',
+  },
+
+  slogan: {
+    color: '#666666',
+    fontSize: 10,
+    fontStyle: 'italic',
+  },
+
+  sloganLine: {
+    height: 2,
+    width: 55,
+    backgroundColor: '#D97706',
+    marginTop: 6,
+  },
+
+  userArea: {
+    marginTop: 18,
+    alignItems: 'flex-start',
+  },
+
+  userSmall: {
+    color: '#999999',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+
+  userRole: {
+    color: '#222222',
+    fontSize: 11,
+    fontWeight: '900',
     marginTop: 3,
   },
 
-  main: {
-    width: '100%',
-    maxWidth: 1200,
-    alignSelf: 'center',
-    padding: 30,
+  userEmail: {
+    color: '#777777',
+    fontSize: 9,
+    marginTop: 2,
+    maxWidth: 250,
   },
 
-  heading: {
+  dashboardButton: {
+    marginTop: 9,
+    backgroundColor: '#222222',
+    paddingHorizontal: 15,
+    paddingVertical: 9,
+  },
+
+  dashboardButtonPressed: {
+    opacity: 0.75,
+  },
+
+  dashboardButtonText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  /* SYSTEM BAR */
+
+  systemBar: {
+    backgroundColor: '#222222',
+    minHeight: 64,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 25,
   },
 
-  headingContent: {
-    flex: 1,
+  systemName: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
 
-  title: {
-    color: '#171717',
-    fontSize: 28,
+  systemDescription: {
+    color: '#BDBDBD',
+    fontSize: 8,
+    fontWeight: '700',
+    marginTop: 3,
+    letterSpacing: 0.5,
+  },
+
+  systemRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  flagMini: {
+    width: 28,
+    height: 18,
+    marginRight: 12,
+    overflow: 'hidden',
+  },
+
+  miniRed: {
+    height: 5,
+    backgroundColor: '#D22B2B',
+  },
+
+  miniGreen: {
+    height: 7,
+    backgroundColor: '#007A4D',
+  },
+
+  miniBlue: {
+    height: 6,
+    backgroundColor: '#003DA5',
+  },
+
+  statusBox: {
+    alignItems: 'flex-end',
+  },
+
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#35A853',
+    marginBottom: 3,
+  },
+
+  statusLabel: {
+    color: '#AAAAAA',
+    fontSize: 7,
+    fontWeight: '800',
+  },
+
+  statusValue: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '900',
+    marginTop: 2,
+  },
+
+  /* NAVIGATION */
+
+  navigation: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E2E2',
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+  },
+
+  navItem: {
+    paddingHorizontal: 15,
+    paddingVertical: 14,
+    marginRight: 3,
+  },
+
+  navActive: {
+    borderBottomWidth: 3,
+    borderBottomColor: '#D97706',
+  },
+
+  navText: {
+    color: '#777777',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+
+  navActiveText: {
+    color: '#222222',
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+
+  /* MAIN */
+
+  main: {
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+  },
+
+  mainTablet: {
+    paddingHorizontal: 45,
+    maxWidth: 1400,
+    width: '100%',
+    alignSelf: 'center',
+  },
+
+  breadcrumb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+
+  breadcrumbHome: {
+    color: '#D97706',
+    fontSize: 9,
     fontWeight: '900',
   },
 
-  description: {
-    color: '#666666',
-    fontSize: 13,
+  breadcrumbSlash: {
+    color: '#AAAAAA',
+    fontSize: 9,
+    marginHorizontal: 7,
+  },
+
+  breadcrumbCurrent: {
+    color: '#777777',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+
+  pageHeader: {
+    marginBottom: 28,
+  },
+
+  pageHeaderTablet: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+
+  pageHeadingLeft: {
+    flex: 1,
+  },
+
+  orangeHeadingLine: {
+    width: 45,
+    height: 4,
+    backgroundColor: '#D97706',
+    marginBottom: 10,
+  },
+
+  pageTitle: {
+    color: '#222222',
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  pageDescription: {
+    color: '#777777',
+    fontSize: 11,
+    lineHeight: 17,
     marginTop: 7,
+    maxWidth: 700,
   },
 
   createButton: {
-    backgroundColor: '#007A4D',
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    marginLeft: 20,
+    backgroundColor: '#D97706',
+    paddingHorizontal: 17,
+    paddingVertical: 12,
+    marginTop: 15,
+    alignSelf: 'flex-start',
+  },
+
+  createButtonPressed: {
+    opacity: 0.75,
   },
 
   createButtonText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
+    letterSpacing: 0.3,
   },
 
-  form: {
+  /* SECTION */
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 13,
+    marginTop: 10,
+  },
+
+  sectionOrangeBar: {
+    width: 4,
+    height: 35,
+    backgroundColor: '#D97706',
+    marginRight: 10,
+  },
+
+  sectionTitle: {
+    color: '#222222',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+
+  sectionSubtitle: {
+    color: '#888888',
+    fontSize: 9,
+    marginTop: 4,
+  },
+
+  /* FORM */
+
+  formCard: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#DDDDDD',
-    padding: 25,
-    marginBottom: 25,
-    overflow: 'hidden',
+    borderColor: '#E4E4E4',
+    padding: 18,
+    marginBottom: 24,
   },
 
-  formTop: {
-    height: 5,
-    backgroundColor: '#111111',
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
+  formHeader: {
+    marginBottom: 18,
+  },
+
+  formHeaderAccent: {
+    width: 30,
+    height: 3,
+    backgroundColor: '#222222',
+    marginBottom: 8,
   },
 
   formTitle: {
-    marginTop: 5,
     color: '#222222',
-    fontSize: 21,
+    fontSize: 12,
     fontWeight: '900',
+    letterSpacing: 0.3,
   },
 
   formDescription: {
-    color: '#777777',
-    fontSize: 12,
-    marginTop: 5,
+    color: '#888888',
+    fontSize: 9,
+    marginTop: 4,
+    lineHeight: 15,
+  },
+
+  formGrid: {
+    width: '100%',
+  },
+
+  fieldFull: {
+    width: '100%',
+    marginBottom: 15,
+  },
+
+  fieldHalf: {
+    width: '48%',
+    marginRight: '2%',
   },
 
   label: {
-    color: '#333333',
-    fontSize: 10,
+    color: '#444444',
+    fontSize: 8,
     fontWeight: '900',
-    marginTop: 14,
-    marginBottom: 7,
+    marginBottom: 6,
+    letterSpacing: 0.4,
   },
 
   input: {
-    height: 48,
+    minHeight: 44,
     borderWidth: 1,
-    borderColor: '#CCCCCC',
+    borderColor: '#D7D7D7',
     backgroundColor: '#FAFAFA',
-    paddingHorizontal: 13,
+    paddingHorizontal: 12,
     color: '#222222',
-    fontSize: 14,
+    fontSize: 11,
   },
 
   inputError: {
@@ -1707,19 +2839,25 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
 
+  textArea: {
+    minHeight: 120,
+    paddingTop: 12,
+  },
+
   selectInput: {
-    minHeight: 48,
+    minHeight: 44,
     borderWidth: 1,
-    borderColor: '#CCCCCC',
+    borderColor: '#D7D7D7',
     backgroundColor: '#FAFAFA',
-    paddingHorizontal: 13,
+    paddingHorizontal: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
 
   selectInputActive: {
-    borderColor: '#007A4D',
+    borderColor: '#D97706',
+    backgroundColor: '#FFFDF8',
   },
 
   disabledInput: {
@@ -1729,28 +2867,28 @@ const styles = StyleSheet.create({
 
   selectText: {
     color: '#222222',
-    fontSize: 14,
+    fontSize: 11,
     flex: 1,
     paddingRight: 10,
   },
 
   placeholderText: {
-    color: '#888888',
-    fontSize: 14,
+    color: '#999999',
+    fontSize: 11,
     flex: 1,
     paddingRight: 10,
   },
 
   selectArrow: {
-    color: '#007A4D',
-    fontSize: 11,
+    color: '#D97706',
+    fontSize: 9,
     fontWeight: '900',
   },
 
   dropdown: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#CCCCCC',
+    borderColor: '#D7D7D7',
     borderTopWidth: 0,
     maxHeight: 220,
   },
@@ -1764,27 +2902,24 @@ const styles = StyleSheet.create({
 
   dropdownItemTitle: {
     color: '#222222',
-    fontSize: 13,
-    fontWeight: '800',
+    fontSize: 10,
+    fontWeight: '900',
   },
 
   dropdownItemSubtitle: {
     color: '#777777',
-    fontSize: 11,
+    fontSize: 8,
     marginTop: 4,
   },
 
   dropdownEmpty: {
     color: '#777777',
-    fontSize: 12,
+    fontSize: 9,
     padding: 15,
     textAlign: 'center',
   },
 
-  textArea: {
-    height: 110,
-    paddingTop: 13,
-  },
+  /* WORKFLOW */
 
   descriptionFooter: {
     flexDirection: 'row',
@@ -1801,160 +2936,320 @@ const styles = StyleSheet.create({
 
   cancel: {
     borderWidth: 1,
-    borderColor: '#CCCCCC',
-    paddingHorizontal: 20,
-    paddingVertical: 13,
+    borderColor: '#E4E4E4',
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#E4E4E4',
+    flexDirection: 'row',
+    padding: 13,
+    marginTop: 2,
   },
 
-  cancelText: {
-    color: '#555555',
-    fontSize: 10,
+  workflowNoticeAccent: {
+    width: 4,
+    backgroundColor: '#D97706',
+    marginRight: 11,
+  },
+
+  workflowNoticeContent: {
+    flex: 1,
+  },
+
+  workflowNoticeTitle: {
+    color: '#333333',
+    fontSize: 9,
     fontWeight: '900',
   },
 
-  save: {
-    backgroundColor: '#007A4D',
-    paddingHorizontal: 20,
-    paddingVertical: 13,
-    minWidth: 130,
+  workflowNoticeText: {
+    color: '#007A4D',
+    fontSize: 10,
+    fontWeight: '900',
+    marginTop: 5,
+  },
+
+  workflowNoticeDescription: {
+    color: '#888888',
+    fontSize: 8,
+    lineHeight: 13,
+    marginTop: 4,
+  },
+
+  /* FORM ACTIONS */
+
+  formActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 20,
+    flexWrap: 'wrap',
+  },
+
+  cancelButton: {
+    borderWidth: 1,
+    borderColor: '#CCCCCC',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    marginRight: 8,
+    marginBottom: 5,
+  },
+
+  cancelPressed: {
+    backgroundColor: '#F5F5F5',
+  },
+
+  cancelText: {
+    color: '#666666',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+
+  saveButton: {
+    backgroundColor: '#222222',
+    minHeight: 40,
+    paddingHorizontal: 17,
+    paddingVertical: 11,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 5,
   },
 
   saveDisabled: {
-    opacity: 0.7,
+    opacity: 0.6,
   },
 
   saveText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+
+  savingText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '900',
+    marginLeft: 7,
+  },
+
+  /* INFO */
+
+  infoCard: {
+    backgroundColor: '#222222',
+    padding: 16,
+    flexDirection: 'row',
+    marginBottom: 28,
+  },
+
+  infoAccent: {
+    width: 4,
+    backgroundColor: '#D97706',
+    marginRight: 12,
+  },
+
+  infoIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#777777',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+
+  infoIconText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: '900',
   },
 
-  loadingContainer: {
+  infoContent: {
+    flex: 1,
+  },
+
+  infoTitle: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+
+  infoText: {
+    color: '#C9C9C9',
+    fontSize: 8,
+    lineHeight: 14,
+    marginTop: 5,
+  },
+
+  /* LOADING */
+
+  loadingState: {
+    minHeight: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 25,
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#DDDDDD',
-    padding: 45,
-    alignItems: 'center',
-    marginBottom: 30,
+    borderColor: '#E2E2E2',
+    marginBottom: 20,
   },
 
   loadingText: {
     color: '#777777',
-    fontSize: 12,
-    marginTop: 12,
+    fontSize: 10,
+    marginTop: 10,
   },
+
+  /* STATS */
 
   statusGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 30,
+    marginBottom: 25,
+  },
+
+  statusGridDesktop: {
+    flexWrap: 'nowrap',
   },
 
   statusCard: {
     flex: 1,
-    minWidth: 150,
+    minWidth: 145,
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 4,
-    borderTopColor: '#007A4D',
     borderWidth: 1,
-    borderColor: '#DDDDDD',
-    padding: 17,
+    borderColor: '#E1E1E1',
+    borderTopWidth: 4,
+    padding: 16,
   },
 
   statusLabel: {
     color: '#777777',
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '900',
+    letterSpacing: 0.4,
   },
 
   statusNumber: {
-    color: '#111111',
-    fontSize: 27,
+    color: '#222222',
+    fontSize: 26,
     fontWeight: '900',
     marginTop: 8,
   },
 
-  sectionTitle: {
-    color: '#333333',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1,
+  /* EMPTY */
+
+  emptyState: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E2E2',
+    padding: 35,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 250,
+    marginBottom: 20,
+  },
+
+  emptyIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#F1F1F1',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
   },
 
-  empty: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    padding: 45,
-    alignItems: 'center',
-  },
-
-  caseIcon: {
-    width: 45,
-    height: 45,
-    borderRadius: 23,
-    backgroundColor: '#111111',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  caseIconText: {
-    color: '#FFFFFF',
-    fontSize: 18,
+  emptyIconText: {
+    color: '#888888',
+    fontSize: 20,
     fontWeight: '900',
   },
 
   emptyTitle: {
-    color: '#222222',
-    fontSize: 17,
+    color: '#333333',
+    fontSize: 12,
     fontWeight: '900',
-    marginTop: 15,
+    textAlign: 'center',
   },
 
   emptyText: {
-    color: '#777777',
-    fontSize: 12,
+    color: '#888888',
+    fontSize: 9,
     textAlign: 'center',
+    marginTop: 5,
     maxWidth: 500,
-    marginTop: 7,
+    lineHeight: 15,
+  },
+
+  emptyButton: {
+    backgroundColor: '#222222',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginTop: 18,
+  },
+
+  emptyButtonPressed: {
+    opacity: 0.75,
+  },
+
+  emptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.4,
   },
 
   workflow: {
-    marginTop: 25,
-    padding: 15,
-    backgroundColor: '#F5F5F2',
+    marginTop: 22,
+    padding: 14,
+    backgroundColor: '#F8F8F5',
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 10,
+    gap: 9,
   },
 
   workflowText: {
     color: '#007A4D',
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '900',
   },
 
   workflowArrow: {
-    color: '#FFB81C',
-    fontSize: 18,
+    color: '#D97706',
+    fontSize: 17,
     fontWeight: '900',
   },
 
+  /* CASE LIST */
+
   caseList: {
+    width: '100%',
     gap: 12,
   },
 
   caseCard: {
     backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#DDDDDD',
-    padding: 20,
+    borderColor: '#E1E1E1',
+    overflow: 'hidden',
+  },
+
+  caseCardPressed: {
+    opacity: 0.9,
+  },
+
+  caseCardAccent: {
+    height: 4,
+    width: '100%',
+  },
+
+  caseCardInner: {
+    padding: 16,
   },
 
   caseCardHeader: {
@@ -1969,54 +3264,177 @@ const styles = StyleSheet.create({
   },
 
   caseNumber: {
-    color: '#007A4D',
-    fontSize: 10,
+    color: '#D97706',
+    fontSize: 9,
     fontWeight: '900',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
   },
 
   caseTitle: {
     color: '#222222',
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '900',
     marginTop: 5,
   },
 
   statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 9,
     paddingVertical: 6,
+    marginLeft: 5,
+  },
+
+  statusBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5,
   },
 
   statusBadgeText: {
     color: '#333333',
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: '900',
   },
 
   caseDescription: {
     color: '#666666',
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 9,
+    lineHeight: 15,
     marginTop: 12,
   },
 
   caseMeta: {
     marginTop: 15,
-    paddingTop: 12,
+    paddingTop: 13,
     borderTopWidth: 1,
     borderTopColor: '#EEEEEE',
-    gap: 5,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
 
-  caseMetaText: {
-    color: '#777777',
-    fontSize: 10,
+  caseMetaItem: {
+    flex: 1,
+    minWidth: 160,
+    marginRight: 15,
+    marginBottom: 8,
+  },
+
+  caseMetaLabel: {
+    color: '#AAAAAA',
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    marginBottom: 4,
+  },
+
+  caseMetaValue: {
+    color: '#444444',
+    fontSize: 9,
+    lineHeight: 14,
+  },
+
+  caseCardFooter: {
+    marginTop: 8,
+    paddingTop: 11,
+    borderTopWidth: 1,
+    borderTopColor: '#EEEEEE',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
   },
 
   viewCase: {
-    color: '#007A4D',
-    fontSize: 9,
+    color: '#D97706',
+    fontSize: 8,
     fontWeight: '900',
-    marginTop: 15,
+    letterSpacing: 0.4,
+  },
+
+  viewCaseArrow: {
+    color: '#D97706',
+    fontSize: 13,
+    fontWeight: '900',
+    marginLeft: 5,
+  },
+
+  /* FOOTER */
+
+  footer: {
+    backgroundColor: '#222222',
+    marginTop: 20,
+    paddingBottom: 25,
+  },
+
+  footerFlag: {
+    height: 5,
+    flexDirection: 'row',
+  },
+
+  footerRed: {
+    flex: 1,
+    backgroundColor: '#D22B2B',
+  },
+
+  footerGreen: {
+    flex: 1,
+    backgroundColor: '#007A4D',
+  },
+
+  footerBlue: {
+    flex: 1,
+    backgroundColor: '#003DA5',
+  },
+
+  footerGold: {
+    flex: 1,
+    backgroundColor: '#FFB81C',
+  },
+
+  footerContent: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    alignItems: 'center',
+  },
+
+  footerTitle: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+
+  footerDepartment: {
+    color: '#BDBDBD',
+    fontSize: 8,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+
+  footerRepublic: {
+    color: '#888888',
+    fontSize: 8,
+    marginTop: 5,
+  },
+
+  footerLine: {
+    width: 60,
+    height: 2,
+    backgroundColor: '#D97706',
+    marginVertical: 12,
+  },
+
+  footerSystem: {
+    color: '#AAAAAA',
+    fontSize: 7,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+
+  footerCopyright: {
+    color: '#666666',
+    fontSize: 7,
+    marginTop: 5,
   },
 });

@@ -1,1649 +1,1187 @@
-import React, {
-  useCallback,
-  useState,
-} from 'react';
+import React, { useCallback, useState } from 'react';
+
 
 import {
   ActivityIndicator,
   Alert,
-  Pressable,
+  Image,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 
-import {
-  router,
-  useFocusEffect,
-} from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
+import ProtectedRoute from '../../src/components/ProtectedRoute';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { supabase } from '../../src/services/supabase';
-import { ROLES } from '../../src/constants/roles';
+
+const ORANGE = '#D97706';
+const DARK = '#222222';
+const GREEN = '#007A4D';
+const BLUE = '#003DA5';
+const RED = '#D22B2B';
+const GOLD = '#FFB81C';
+const WHITE = '#FFFFFF';
+const LIGHT = '#F5F5F5';
+const BORDER = '#D9D9D9';
+const MUTED = '#666666';
+
+const ROLES = {
+  DSAC_ADMIN: 'DSAC_ADMIN',
+};
+
+const EMPTY_FORM = {
+  organisationName: '',
+  organisationType: 'NPO',
+  registrationNumber: '',
+  email: '',
+  adminFullName: '',
+  adminEmail: '',
+  adminPassword: '',
+  confirmPassword: '',
+};
 
 export default function OrganisationsScreen() {
+  return (
+    <ProtectedRoute>
+      <OrganisationsContent />
+    </ProtectedRoute>
+  );
+}
+
+function OrganisationsContent() {
+  const { width } = useWindowDimensions();
+
   const {
     profile,
     user,
     role,
-    loading: authLoading,
+    authLoading,
   } = useAuth();
 
-  const [showForm, setShowForm] = useState(false);
+  const isDesktop = width >= 900;
 
-  // Organisation details
-  const [organisationName, setOrganisationName] =
-    useState('');
+  const [organisations, setOrganisations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const [organisationType, setOrganisationType] =
-    useState('NPO');
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
-  const [registrationNumber, setRegistrationNumber] =
-    useState('');
+  const [form, setForm] = useState(EMPTY_FORM);
 
-  const [email, setEmail] =
-    useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // First Organisation Admin details
-  const [adminFullName, setAdminFullName] =
-    useState('');
+  const [creating, setCreating] = useState(false);
 
-  const [adminEmail, setAdminEmail] =
-    useState('');
+  const [activeNav, setActiveNav] = useState('organisations');
 
-  const [adminPassword, setAdminPassword] =
-    useState('');
+  const isDsacAdmin =
+    role === ROLES.DSAC_ADMIN ||
+    profile?.role === ROLES.DSAC_ADMIN ||
+    user?.role === ROLES.DSAC_ADMIN;
 
-  const [adminPasswordConfirm, setAdminPasswordConfirm] =
-    useState('');
+  const updateField = (field, value) => {
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
 
-  const [adminPasswordVisible, setAdminPasswordVisible] =
-    useState(false);
+  const resetForm = () => {
+    setForm(EMPTY_FORM);
+    setShowAdminPassword(false);
+    setShowConfirmPassword(false);
+  };
 
-  const [organisations, setOrganisations] =
-    useState([]);
+  const closeCreateForm = () => {
+    resetForm();
+    setShowCreateForm(false);
+  };
 
-  const [loading, setLoading] =
-    useState(true);
+  const loadOrganisations = useCallback(async () => {
+    try {
+      setLoading(true);
 
-  const [saving, setSaving] =
-    useState(false);
+      const { data, error } = await supabase
+        .from('organisations')
+        .select(`
+          id,
+          name,
+          organisation_type,
+          registration_number,
+          email,
+          phone,
+          province,
+          status,
+          created_at
+        `)
+        .order('created_at', { ascending: false });
 
-  /*
-   * Load organisations from Supabase
-   */
-  const loadOrganisations =
-    useCallback(async () => {
-      try {
-        setLoading(true);
-
-        console.log(
-          'LOAD ORGANISATIONS: starting'
-        );
-
-        const {
-          data,
-          error,
-        } = await supabase
-          .from('organisations')
-          .select(`
-            id,
-            name,
-            organisation_type,
-            registration_number,
-            email,
-            phone,
-            province,
-            status,
-            created_at
-          `)
-          .order('created_at', {
-            ascending: false,
-          });
-
-        console.log(
-          'LOAD ORGANISATIONS: response',
-          {
-            data,
-            error,
-          }
-        );
-
-        if (error) {
-          throw error;
-        }
-
-        setOrganisations(
-          data || []
-        );
-      } catch (error) {
-        console.error(
-          'Organisation loading error:',
-          error
-        );
-
-        Alert.alert(
-          'Unable to Load',
-          'Organisations could not be loaded from Supabase.'
-        );
-      } finally {
-        setLoading(false);
+      if (error) {
+        console.error('Error loading organisations:', error);
+        throw error;
       }
-    }, []);
+
+      setOrganisations(data || []);
+    } catch (error) {
+      Alert.alert(
+        'Unable to Load Organisations',
+        error?.message || 'Something went wrong while loading organisations.'
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      if (
-        !authLoading &&
-        user &&
-        role === ROLES.DSAC_ADMIN
-      ) {
+      if (!authLoading && isDsacAdmin) {
         loadOrganisations();
       }
-    }, [
-      authLoading,
-      user,
-      role,
-      loadOrganisations,
-    ])
+    }, [authLoading, isDsacAdmin, loadOrganisations])
   );
 
-  /*
-   * Reset the complete organisation form
-   */
-  const resetForm = () => {
-    setOrganisationName('');
-    setOrganisationType('NPO');
-    setRegistrationNumber('');
-    setEmail('');
-
-    setAdminFullName('');
-    setAdminEmail('');
-    setAdminPassword('');
-    setAdminPasswordConfirm('');
-    setAdminPasswordVisible(false);
-
-    setShowForm(false);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadOrganisations();
   };
 
-  /*
-   * Create organisation + first Organisation Admin
-   */
-  const createOrganisation =
-    async () => {
-      console.log(
-        'CREATE ORGANISATION: BUTTON FUNCTION STARTED'
+  const isValidEmail = (value) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+  };
+
+  const createOrganisation = async () => {
+    if (!user) {
+      Alert.alert(
+        'Authentication Required',
+        'Please sign in again before creating an organisation.'
       );
+      return;
+    }
 
-      /*
-       * Make sure the user is authenticated
-       */
-      if (!user) {
-        console.log(
-          'CREATE ORGANISATION: NO USER'
-        );
-
-        Alert.alert(
-          'Authentication Required',
-          'You must be signed in to create an organisation.'
-        );
-
-        return;
-      }
-
-      console.log(
-        'CREATE ORGANISATION: USER FOUND',
-        user.id
+    if (!isDsacAdmin) {
+      Alert.alert(
+        'Access Denied',
+        'Only DSAC administrators can register organisations.'
       );
+      return;
+    }
 
-      /*
-       * Make sure user is DSAC Admin
-       */
-      if (
-        role !== ROLES.DSAC_ADMIN
-      ) {
-        console.log(
-          'CREATE ORGANISATION: ACCESS DENIED',
-          role
-        );
+    const organisationName = form.organisationName.trim();
+    const registrationNumber = form.registrationNumber.trim();
+    const email = form.email.trim();
+    const adminFullName = form.adminFullName.trim();
+    const adminEmail = form.adminEmail.trim();
+    const adminPassword = form.adminPassword;
+    const confirmPassword = form.confirmPassword;
 
-        Alert.alert(
-          'Access Denied',
-          'Only a DSAC administrator can create organisations.'
-        );
+    if (!organisationName) {
+      Alert.alert('Required Field', 'Please enter the organisation name.');
+      return;
+    }
 
-        return;
-      }
-
-      console.log(
-        'CREATE ORGANISATION: DSAC ADMIN VERIFIED'
+    if (!registrationNumber) {
+      Alert.alert(
+        'Required Field',
+        'Please enter the organisation registration number.'
       );
+      return;
+    }
 
-      /*
-       * Organisation validation
-       */
-      if (
-        !organisationName.trim() ||
-        !registrationNumber.trim() ||
-        !email.trim()
-      ) {
-        console.log(
-          'CREATE ORGANISATION: ORGANISATION VALIDATION FAILED'
-        );
-
-        Alert.alert(
-          'Missing Organisation Information',
-          'Please complete the organisation name, registration number and organisation email.'
-        );
-
-        return;
-      }
-
-      /*
-       * Correct email validation
-       */
-      const emailPattern =
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-      if (
-        !emailPattern.test(
-          email.trim()
-        )
-      ) {
-        console.log(
-          'CREATE ORGANISATION: ORGANISATION EMAIL INVALID',
-          email
-        );
-
-        Alert.alert(
-          'Invalid Organisation Email',
-          'Please enter a valid organisation email address.'
-        );
-
-        return;
-      }
-
-      /*
-       * Admin validation
-       */
-      if (
-        !adminFullName.trim() ||
-        !adminEmail.trim() ||
-        !adminPassword ||
-        !adminPasswordConfirm
-      ) {
-        console.log(
-          'CREATE ORGANISATION: ADMIN VALIDATION FAILED'
-        );
-
-        Alert.alert(
-          'Missing Administrator Information',
-          'Please complete the Organisation Administrator name, email, password and password confirmation.'
-        );
-
-        return;
-      }
-
-      /*
-       * Admin email validation
-       */
-      if (
-        !emailPattern.test(
-          adminEmail.trim()
-        )
-      ) {
-        console.log(
-          'CREATE ORGANISATION: ADMIN EMAIL INVALID',
-          adminEmail
-        );
-
-        Alert.alert(
-          'Invalid Administrator Email',
-          'Please enter a valid Organisation Administrator email address.'
-        );
-
-        return;
-      }
-
-      /*
-       * Password validation
-       */
-      if (
-        adminPassword.length < 8
-      ) {
-        console.log(
-          'CREATE ORGANISATION: PASSWORD TOO SHORT'
-        );
-
-        Alert.alert(
-          'Password Too Short',
-          'The temporary password must contain at least 8 characters.'
-        );
-
-        return;
-      }
-
-      /*
-       * Confirm password
-       */
-      if (
-        adminPassword !==
-        adminPasswordConfirm
-      ) {
-        console.log(
-          'CREATE ORGANISATION: PASSWORDS DO NOT MATCH'
-        );
-
-        Alert.alert(
-          'Passwords Do Not Match',
-          'The temporary password and confirmation password must match.'
-        );
-
-        return;
-      }
-
-      console.log(
-        'CREATE ORGANISATION: ALL VALIDATION PASSED'
+    if (!email) {
+      Alert.alert(
+        'Required Field',
+        'Please enter the organisation email address.'
       );
+      return;
+    }
 
-      try {
-        setSaving(true);
+    if (!isValidEmail(email)) {
+      Alert.alert(
+        'Invalid Email',
+        'Please enter a valid organisation email address.'
+      );
+      return;
+    }
 
-        console.log(
-          'CREATE ORGANISATION: SAVING STATE ENABLED'
-        );
+    if (!adminFullName) {
+      Alert.alert(
+        'Required Field',
+        'Please enter the first organisation administrator’s full name.'
+      );
+      return;
+    }
 
-        /*
-         * --------------------------------
-         * CHECK DUPLICATE REGISTRATION
-         * --------------------------------
-         */
+    if (!adminEmail) {
+      Alert.alert(
+        'Required Field',
+        'Please enter the administrator email address.'
+      );
+      return;
+    }
 
-        console.log(
-          'CREATE ORGANISATION: CHECKING DUPLICATE REGISTRATION'
-        );
+    if (!isValidEmail(adminEmail)) {
+      Alert.alert(
+        'Invalid Email',
+        'Please enter a valid administrator email address.'
+      );
+      return;
+    }
 
-        const {
-          data: existingOrganisation,
-          error: duplicateError,
-        } = await supabase
-          .from('organisations')
-          .select('id')
-          .eq(
-            'registration_number',
-            registrationNumber.trim()
-          )
-          .maybeSingle();
+    if (!adminPassword) {
+      Alert.alert(
+        'Required Field',
+        'Please create a password for the organisation administrator.'
+      );
+      return;
+    }
 
-        console.log(
-          'CREATE ORGANISATION: DUPLICATE CHECK RESPONSE',
-          {
-            existingOrganisation,
-            duplicateError,
-          }
-        );
+    if (adminPassword.length < 8) {
+      Alert.alert(
+        'Password Too Short',
+        'The administrator password must contain at least 8 characters.'
+      );
+      return;
+    }
 
-        if (duplicateError) {
-          throw duplicateError;
-        }
+    if (adminPassword !== confirmPassword) {
+      Alert.alert(
+        'Passwords Do Not Match',
+        'The administrator passwords do not match.'
+      );
+      return;
+    }
 
-        if (existingOrganisation) {
-          console.log(
-            'CREATE ORGANISATION: DUPLICATE FOUND'
-          );
+    try {
+      setCreating(true);
 
-          Alert.alert(
-            'Organisation Already Exists',
-            'An organisation with this registration number already exists.'
-          );
+      const {
+        data: existingOrganisation,
+        error: duplicateError,
+      } = await supabase
+        .from('organisations')
+        .select('id')
+        .eq('registration_number', registrationNumber)
+        .maybeSingle();
 
-          return;
-        }
+      if (duplicateError) {
+        throw duplicateError;
+      }
 
-        /*
-         * --------------------------------
-         * CREATE ORGANISATION
-         * --------------------------------
-         */
-
-        console.log(
-          'CREATE ORGANISATION: ABOUT TO INSERT ORGANISATION'
-        );
-
-        const {
-          data,
-          error,
-        } = await supabase
-          .from('organisations')
-          .insert({
-            name:
-              organisationName.trim(),
-
-            organisation_type:
-              organisationType,
-
-            registration_number:
-              registrationNumber.trim(),
-
-            email:
-              email.trim().toLowerCase(),
-
-            status:
-              'ACTIVE',
-
-            created_by:
-              profile?.id || user.id,
-          })
-          .select()
-          .single();
-
-        console.log(
-          'CREATE ORGANISATION: ORGANISATION INSERT FINISHED'
-        );
-
-        console.log(
-          'CREATE ORGANISATION: INSERT DATA',
-          data
-        );
-
-        console.log(
-          'CREATE ORGANISATION: INSERT ERROR',
-          error
-        );
-
-        if (error) {
-          console.error(
-            'Organisation insert error:',
-            error
-          );
-
-          throw error;
-        }
-
-        if (!data?.id) {
-          throw new Error(
-            'The organisation was created but its ID could not be retrieved.'
-          );
-        }
-
-        console.log(
-          'CREATE ORGANISATION: ORGANISATION CREATED SUCCESSFULLY',
-          data.id
-        );
-
-        /*
-         * --------------------------------
-         * CREATE ORGANISATION ADMIN
-         * --------------------------------
-         *
-         * Password is sent only to the
-         * secure server-side Edge Function.
-         */
-
-        console.log(
-          'CREATE ORGANISATION: CALLING EDGE FUNCTION'
-        );
-
-        console.log(
-          'CREATE ORGANISATION: FUNCTION PAYLOAD',
-          {
-            organisationId: data.id,
-            fullName:
-              adminFullName.trim(),
-            email:
-              adminEmail.trim().toLowerCase(),
-          }
-        );
-
-        const {
-          data: functionData,
-          error: functionError,
-        } =
-          await supabase.functions.invoke(
-            'create-organisation-admin',
-            {
-              body: {
-                organisationId:
-                  data.id,
-
-                fullName:
-                  adminFullName.trim(),
-
-                email:
-                  adminEmail.trim().toLowerCase(),
-
-                password:
-                  adminPassword,
-              },
-            }
-          );
-
-        console.log(
-          'CREATE ORGANISATION: EDGE FUNCTION FINISHED'
-        );
-
-        console.log(
-          'CREATE ORGANISATION: EDGE FUNCTION DATA',
-          functionData
-        );
-
-        console.log(
-          'CREATE ORGANISATION: EDGE FUNCTION ERROR',
-          functionError
-        );
-
-        /*
-         * --------------------------------
-         * EDGE FUNCTION ERROR
-         * --------------------------------
-         */
-
-        if (functionError) {
-          console.error(
-            'Organisation admin function error:',
-            functionError
-          );
-
-          Alert.alert(
-            'Administrator Creation Failed',
-            `The organisation "${data.name}" was created, but the Organisation Administrator could not be created.\n\n${functionError.message || 'Please check the Edge Function.'}`
-          );
-
-          await loadOrganisations();
-
-          return;
-        }
-
-        /*
-         * --------------------------------
-         * EDGE FUNCTION RESPONSE ERROR
-         * --------------------------------
-         */
-
-        if (
-          !functionData?.success
-        ) {
-          console.error(
-            'Organisation admin provisioning failed:',
-            functionData
-          );
-
-          Alert.alert(
-            'Administrator Creation Failed',
-            functionData?.error ||
-              'The Organisation Administrator could not be created.'
-          );
-
-          await loadOrganisations();
-
-          return;
-        }
-
-        /*
-         * --------------------------------
-         * EVERYTHING SUCCESSFUL
-         * --------------------------------
-         */
-
-        console.log(
-          'CREATE ORGANISATION: EVERYTHING SUCCESSFUL'
-        );
-
+      if (existingOrganisation) {
         Alert.alert(
-          'Organisation Created Successfully',
-          `${data.name} has been registered in CIVITRACK and ${adminFullName.trim()} has been created as the Organisation Administrator.`
+          'Organisation Already Exists',
+          'An organisation with this registration number is already registered.'
+        );
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('organisations')
+        .insert({
+          name: organisationName,
+          organisation_type: form.organisationType,
+          registration_number: registrationNumber,
+          email: email.toLowerCase(),
+          status: 'ACTIVE',
+          created_by: profile?.id || user.id,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data?.id) {
+        throw new Error(
+          'The organisation was not created because no organisation ID was returned.'
+        );
+      }
+
+      const {
+        error: adminError,
+      } = await supabase.functions.invoke('create-organisation-admin', {
+        body: {
+          organisationId: data.id,
+          fullName: adminFullName,
+          email: adminEmail.toLowerCase(),
+          password: adminPassword,
+        },
+      });
+
+      if (adminError) {
+        console.error(
+          'Organisation created but admin creation failed:',
+          adminError
         );
 
-        /*
-         * Reset form
-         */
         resetForm();
+        setShowCreateForm(false);
 
-        /*
-         * Reload organisations
-         */
         await loadOrganisations();
 
-      } catch (error) {
-        console.error(
-          'Organisation creation error:',
-          error
-        );
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'The organisation could not be created.';
-
         Alert.alert(
-          'Creation Failed',
-          message
+          'Organisation Created',
+          'The organisation was registered successfully, but the organisation administrator account could not be created. Please check the administrator setup.'
         );
 
-      } finally {
-        console.log(
-          'CREATE ORGANISATION: SAVING STATE DISABLED'
-        );
-
-        setSaving(false);
-      }
-    };
-
-  /*
-   * Format date for display
-   */
-  const formatDate =
-    (date) => {
-      if (!date) {
-        return '—';
+        return;
       }
 
-      const value =
-        new Date(date);
+      resetForm();
+      setShowCreateForm(false);
 
-      if (
-        Number.isNaN(
-          value.getTime()
-        )
-      ) {
-        return '—';
-      }
+      await loadOrganisations();
 
-      return value.toLocaleDateString(
-        'en-ZA',
-        {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-        }
+      Alert.alert(
+        'Organisation Registered',
+        `${organisationName} has been successfully registered and the first administrator account has been created.`
       );
-    };
+    } catch (error) {
+      console.error('Create organisation error:', error);
 
-  /*
-   * Authentication loading state
-   */
-  if (authLoading) {
+      Alert.alert(
+        'Registration Failed',
+        error?.message ||
+          'Something went wrong while registering the organisation.'
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const navigate = (route, navName) => {
+    setActiveNav(navName);
+    router.push(route);
+  };
+
+  if (authLoading || loading) {
     return (
-      <SafeAreaView
-        style={styles.safeArea}
-      >
-        <StatusBar
-          barStyle="light-content"
-          backgroundColor="#111111"
-        />
+      <SafeAreaView style={styles.loadingScreen}>
+        <StatusBar barStyle="dark-content" backgroundColor={WHITE} />
 
-        <View
-          style={styles.loadingState}
-        >
-          <ActivityIndicator
-            size="large"
-            color="#007A4D"
-          />
+        <ActivityIndicator size="large" color={ORANGE} />
 
-          <Text
-            style={styles.loadingText}
-          >
-            Checking administrator access...
-          </Text>
-        </View>
+        <Text style={styles.loadingText}>
+          Loading organisations...
+        </Text>
       </SafeAreaView>
     );
   }
 
-  /*
-   * User is not authenticated
-   */
   if (!user) {
     return (
-      <SafeAreaView
-        style={styles.safeArea}
-      >
-        <StatusBar
-          barStyle="light-content"
-          backgroundColor="#111111"
-        />
+      <SafeAreaView style={styles.loadingScreen}>
+        <StatusBar barStyle="dark-content" backgroundColor={WHITE} />
 
-        <View
-          style={styles.emptyState}
-        >
-          <Text
-            style={styles.emptyTitle}
-          >
-            Authentication Required
-          </Text>
+        <Text style={styles.accessTitle}>
+          Authentication Required
+        </Text>
 
-          <Text
-            style={styles.emptyText}
-          >
-            Please sign in before accessing organisation management.
-          </Text>
-
-          <Pressable
-            style={styles.emptyButton}
-            onPress={() =>
-              router.replace(
-                '/auth/login'
-              )
-            }
-          >
-            <Text
-              style={
-                styles.emptyButtonText
-              }
-            >
-              GO TO LOGIN
-            </Text>
-          </Pressable>
-        </View>
+        <Text style={styles.accessText}>
+          Please sign in to access the organisations section.
+        </Text>
       </SafeAreaView>
     );
   }
 
-  /*
-   * User is authenticated but not DSAC Admin
-   */
-  if (
-    role !== ROLES.DSAC_ADMIN
-  ) {
-      return (
+  if (!isDsacAdmin) {
+    return (
+      <SafeAreaView style={styles.loadingScreen}>
+        <StatusBar barStyle="dark-content" backgroundColor={WHITE} />
+
+        <Text style={styles.accessTitle}>
+          Access Denied
+        </Text>
+
+        <Text style={styles.accessText}>
+          Only DSAC administrators can access organisation management.
+        </Text>
+
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={styles.backButton}
+          onPress={() => router.replace('/dsac/dashboard')}
+        >
+          <Text style={styles.backButtonText}>
+            RETURN TO DASHBOARD
+          </Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar
         barStyle="dark-content"
-        backgroundColor="#FFFFFF"
+        backgroundColor={WHITE}
       />
 
       <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
+        style={styles.screen}
+        contentContainerStyle={styles.contentContainer}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[ORANGE]}
+            tintColor={ORANGE}
+          />
+        }
       >
-
-        {/* =====================================================
-            SOUTH AFRICAN FLAG STRIP
-        ===================================================== */}
-
+        {/* SOUTH AFRICAN FLAG STRIP */}
         <View style={styles.flagStrip}>
-          <View
-            style={[
-              styles.flagSection,
-              styles.flagRed,
-            ]}
-          />
-
-          <View
-            style={[
-              styles.flagSection,
-              styles.flagWhite,
-            ]}
-          />
-
-          <View
-            style={[
-              styles.flagSection,
-              styles.flagGreen,
-            ]}
-          />
-
-          <View
-            style={[
-              styles.flagSection,
-              styles.flagGold,
-            ]}
-          />
-
-          <View
-            style={[
-              styles.flagSection,
-              styles.flagBlue,
-            ]}
-          />
-
-          <View
-            style={[
-              styles.flagSection,
-              styles.flagBlack,
-            ]}
-          />
+          <View style={styles.flagRed} />
+          <View style={styles.flagBlue} />
+          <View style={styles.flagGreen} />
+          <View style={styles.flagYellow} />
         </View>
 
-        {/* =====================================================
-            TOP GOVERNMENT HEADER
-        ===================================================== */}
-
-        <View
-          style={[
-            styles.topHeader,
-            !isDesktop && styles.topHeaderTablet,
-          ]}
-        >
-
-          {/* Government identity */}
-
-          <View style={styles.brandArea}>
-
-            <View style={styles.coatContainer}>
+        {/* GOVERNMENT HEADER */}
+        <View style={styles.govHeader}>
+          <View style={styles.govHeaderInner}>
+            <View style={styles.logoContainer}>
               <Image
                 source={require('../../assets/images/sa.jpg')}
-                style={styles.coatOfArms}
+                style={styles.saLogo}
                 resizeMode="contain"
               />
             </View>
 
-            <View style={styles.brandText}>
-
-              <Text style={styles.brandTitle}>
-                sport, arts & culture
-              </Text>
-
-              <Text style={styles.departmentText}>
-                Department:
-              </Text>
-
-              <Text style={styles.departmentText}>
-                Sport, Arts and Culture
-              </Text>
-
-              <Text style={styles.republicText}>
+            <View style={styles.govTextContainer}>
+              <Text style={styles.govCountry}>
                 REPUBLIC OF SOUTH AFRICA
               </Text>
 
-            </View>
-
-          </View>
-
-          {/* Government slogan */}
-
-          {isDesktop && (
-            <View style={styles.sloganArea}>
-
-              <Text style={styles.slogan}>
-                INSPIRING A NATION OF WINNERS
+              <Text style={styles.govDepartment}>
+                DEPARTMENT OF SPORT, ARTS AND CULTURE
               </Text>
 
-              <View style={styles.sloganLine} />
-
+              <Text style={styles.govSubtext}>
+                GOVERNMENT OF SOUTH AFRICA
+              </Text>
             </View>
-          )}
 
-          {/* Current user */}
+            {isDesktop && (
+              <View style={styles.userHeader}>
+                <Text style={styles.signedInLabel}>
+                  SIGNED IN AS
+                </Text>
 
-          <View style={styles.userArea}>
+                <Text style={styles.userRole}>
+                  DSAC ADMIN
+                </Text>
 
-            <Text style={styles.userSmall}>
-              SYSTEM USER
+                <Text style={styles.userEmail}>
+                  {user?.email || profile?.email || 'Administrator'}
+                </Text>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  style={styles.dashboardButton}
+                  onPress={() =>
+                    router.push('/dsac/dashboard')
+                  }
+                >
+                  <Text style={styles.dashboardButtonText}>
+                    DASHBOARD
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* SYSTEM BAR */}
+        <View style={styles.systemBar}>
+          <View style={styles.systemBarInner}>
+            <View style={styles.systemBrand}>
+              <View style={styles.systemDot} />
+
+              <Text style={styles.systemName}>
+                CIVITRACK
+              </Text>
+
+              <Text style={styles.systemDescription}>
+                GOVERNMENT ORGANISATION MANAGEMENT
+              </Text>
+            </View>
+
+            <Text style={styles.systemStatus}>
+              SECURE GOVERNMENT SYSTEM
             </Text>
+          </View>
+        </View>
 
-            <Text style={styles.userRole}>
-              DSAC ADMINISTRATOR
-            </Text>
-
-            <Text style={styles.userEmail}>
-              {profile?.email || 'Administrator'}
-            </Text>
-
-            <Pressable
-              onPress={() =>
-                router.replace('/dsac/dashboard')
-              }
-              style={({ pressed }) => [
-                styles.dashboardButton,
-                pressed && styles.dashboardButtonPressed,
+        {/* NAVIGATION */}
+        <View style={styles.navigation}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.navigationInner}
+          >
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={[
+                styles.navItem,
+                activeNav === 'dashboard' &&
+                  styles.navItemActive,
               ]}
+              onPress={() =>
+                navigate('/dsac/dashboard', 'dashboard')
+              }
             >
-              <Text style={styles.dashboardButtonText}>
+              <Text
+                style={[
+                  styles.navText,
+                  activeNav === 'dashboard' &&
+                    styles.navTextActive,
+                ]}
+              >
                 DASHBOARD
               </Text>
-            </Pressable>
+            </TouchableOpacity>
 
-          </View>
-
-        </View>
-
-        {/* =====================================================
-            CIVITRACK SYSTEM BAR
-        ===================================================== */}
-
-        <View style={styles.systemBar}>
-
-          <View>
-            <Text style={styles.systemName}>
-              CIVITRACK
-            </Text>
-
-            <Text style={styles.systemDescription}>
-              Public Funding & Accountability Management System
-            </Text>
-          </View>
-
-          <View style={styles.systemRight}>
-
-            <View style={styles.flagMini}>
-              <View style={styles.miniRed} />
-              <View style={styles.miniGreen} />
-              <View style={styles.miniBlue} />
-            </View>
-
-            <View style={styles.statusBox}>
-
-              <View style={styles.statusDot} />
-
-              <View>
-                <Text style={styles.statusLabel}>
-                  SYSTEM STATUS
-                </Text>
-
-                <Text style={styles.statusValue}>
-                  OPERATIONAL
-                </Text>
-              </View>
-
-            </View>
-
-          </View>
-
-        </View>
-
-        {/* =====================================================
-            MAIN NAVIGATION
-        ===================================================== */}
-
-        <View style={styles.navigation}>
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() =>
-              router.push('/dsac/dashboard')
-            }
-          >
-            <Text style={styles.navText}>
-              HOME
-            </Text>
-          </Pressable>
-
-          <View style={styles.navActive}>
-            <Text style={styles.navActiveText}>
-              ORGANISATIONS
-            </Text>
-          </View>
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() =>
-              router.push('/dsac/funding-agreements')
-            }
-          >
-            <Text style={styles.navText}>
-              FUNDING
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={styles.navItem}
-            onPress={() =>
-              router.push('/dsac/cases')
-            }
-          >
-            <Text style={styles.navText}>
-              ACCOUNTABILITY
-            </Text>
-          </Pressable>
-
-          <Pressable style={styles.navItem}>
-            <Text style={styles.navText}>
-              REPORTS
-            </Text>
-          </Pressable>
-
-          <Pressable style={styles.navItem}>
-            <Text style={styles.navText}>
-              AUDIT LOG
-            </Text>
-          </Pressable>
-
-        </View>
-
-        {/* =====================================================
-            MAIN CONTENT
-        ===================================================== */}
-
-        <View
-          style={[
-            styles.main,
-            !isDesktop && styles.mainTablet,
-          ]}
-        >
-
-          {/* Breadcrumb */}
-
-          <View style={styles.breadcrumb}>
-
-            <Pressable
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={[
+                styles.navItem,
+                activeNav === 'organisations' &&
+                  styles.navItemActive,
+              ]}
               onPress={() =>
-                router.push('/dsac/dashboard')
+                setActiveNav('organisations')
               }
             >
-              <Text style={styles.breadcrumbHome}>
-                HOME
+              <Text
+                style={[
+                  styles.navText,
+                  activeNav === 'organisations' &&
+                    styles.navTextActive,
+                ]}
+              >
+                ORGANISATIONS
               </Text>
-            </Pressable>
+            </TouchableOpacity>
 
-            <Text style={styles.breadcrumbSlash}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={[
+                styles.navItem,
+                activeNav === 'funding' &&
+                  styles.navItemActive,
+              ]}
+              onPress={() =>
+                navigate(
+                  '/dsac/funding-agreements',
+                  'funding'
+                )
+              }
+            >
+              <Text
+                style={[
+                  styles.navText,
+                  activeNav === 'funding' &&
+                    styles.navTextActive,
+                ]}
+              >
+                FUNDING
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={[
+                styles.navItem,
+                activeNav === 'cases' &&
+                  styles.navItemActive,
+              ]}
+              onPress={() =>
+                navigate('/dsac/cases', 'cases')
+              }
+            >
+              <Text
+                style={[
+                  styles.navText,
+                  activeNav === 'cases' &&
+                    styles.navTextActive,
+                ]}
+              >
+                ACCOUNTABILITY
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
+        {/* MAIN CONTENT */}
+        <View
+          style={[
+            styles.mainContent,
+            isDesktop && styles.mainContentDesktop,
+          ]}
+        >
+          {/* BREADCRUMB */}
+          <View style={styles.breadcrumb}>
+            <Text style={styles.breadcrumbText}>
+              HOME
+            </Text>
+
+            <Text style={styles.breadcrumbSeparator}>
               /
             </Text>
 
-            <Text style={styles.breadcrumbCurrent}>
+            <Text style={styles.breadcrumbText}>
               ORGANISATIONS
             </Text>
-
           </View>
 
-          {/* =================================================
-              PAGE HEADER
-          ================================================= */}
+          {/* PAGE HEADER */}
+          <View style={styles.pageHeader}>
+            <View style={styles.pageTitleContainer}>
+              <View style={styles.orangeAccent} />
 
-          <View
-            style={[
-              styles.pageHeader,
-              !isDesktop && styles.pageHeaderTablet,
-            ]}
-          >
+              <View>
+                <Text style={styles.pageTitle}>
+                  ORGANISATIONS
+                </Text>
 
-            <View style={styles.pageHeadingLeft}>
-
-              <View style={styles.orangeHeadingLine} />
-
-              <Text style={styles.pageTitle}>
-                Organisations
-              </Text>
-
-              <Text style={styles.pageDescription}>
-                Register and manage NPOs and Public Entities
-                participating in DSAC-funded programmes.
-              </Text>
-
+                <Text style={styles.pageSubtitle}>
+                  Register and manage participating
+                  organisations
+                </Text>
+              </View>
             </View>
 
-            <Pressable
-              style={({ pressed }) => [
-                styles.createButton,
-                pressed && styles.createButtonPressed,
-              ]}
-              onPress={() =>
-                setShowForm(!showForm)
-              }
-              disabled={saving}
-            >
-              <Text style={styles.createButtonText}>
-                {showForm
-                  ? 'CLOSE FORM'
-                  : '+ CREATE ORGANISATION'}
-              </Text>
-            </Pressable>
+            {/* IMPORTANT: CLICKABLE REGISTER BUTTON */}
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                activeOpacity={0.65}
+                onPress={() => {
+                  console.log(
+                    'REGISTER ORGANISATION BUTTON PRESSED'
+                  );
 
+                  setShowCreateForm((current) => !current);
+                }}
+                style={styles.registerButton}
+              >
+                <Text style={styles.registerButtonText}>
+                  {showCreateForm
+                    ? '× CLOSE FORM'
+                    : '+ REGISTER ORGANISATION'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* =================================================
-              ORGANISATION REGISTRATION FORM
-          ================================================= */}
-
-          {showForm && (
-            <View style={styles.formCard}>
-
-              <View style={styles.formHeader}>
-
-                <View style={styles.formHeaderAccent} />
-
+          {/* CREATE ORGANISATION FORM */}
+          {showCreateForm && (
+            <View style={styles.formSection}>
+              <View style={styles.sectionHeader}>
                 <View>
-                  <Text style={styles.formTitle}>
+                  <Text style={styles.sectionTitle}>
                     REGISTER ORGANISATION
                   </Text>
 
-                  <Text style={styles.formDescription}>
-                    Only authorised DSAC administrators can create
-                    organisations and provision their first
-                    Organisation Administrator.
+                  <Text style={styles.sectionSubtitle}>
+                    Create a new participating
+                    organisation and its first administrator
                   </Text>
                 </View>
 
-              </View>
-
-              {/* Organisation details */}
-
-              <View style={styles.formSection}>
-
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionOrangeBar} />
-
-                  <View>
-                    <Text style={styles.sectionTitle}>
-                      ORGANISATION DETAILS
-                    </Text>
-
-                    <Text style={styles.sectionSubtitle}>
-                      Official registration information
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.formGrid}>
-
-                  <View style={styles.fieldFull}>
-                    <Text style={styles.label}>
-                      ORGANISATION NAME *
-                    </Text>
-
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Enter organisation name"
-                      placeholderTextColor="#888888"
-                      value={organisationName}
-                      onChangeText={setOrganisationName}
-                      editable={!saving}
-                    />
-                  </View>
-
-                  <View style={styles.fieldFull}>
-
-                    <Text style={styles.label}>
-                      ORGANISATION TYPE *
-                    </Text>
-
-                    <View style={styles.typeRow}>
-
-                      <Pressable
-                        style={[
-                          styles.typeButton,
-                          organisationType === 'NPO' &&
-                            styles.selectedType,
-                        ]}
-                        onPress={() =>
-                          setOrganisationType('NPO')
-                        }
-                        disabled={saving}
-                      >
-                        <View
-                          style={[
-                            styles.typeIndicator,
-                            organisationType === 'NPO' &&
-                              styles.typeIndicatorSelected,
-                          ]}
-                        />
-
-                        <Text
-                          style={[
-                            styles.typeText,
-                            organisationType === 'NPO' &&
-                              styles.selectedTypeText,
-                          ]}
-                        >
-                          NPO
-                        </Text>
-                      </Pressable>
-
-                      <Pressable
-                        style={[
-                          styles.typeButton,
-                          organisationType === 'PUBLIC_ENTITY' &&
-                            styles.selectedType,
-                        ]}
-                        onPress={() =>
-                          setOrganisationType(
-                            'PUBLIC_ENTITY'
-                          )
-                        }
-                        disabled={saving}
-                      >
-                        <View
-                          style={[
-                            styles.typeIndicator,
-                            organisationType === 'PUBLIC_ENTITY' &&
-                              styles.typeIndicatorSelected,
-                          ]}
-                        />
-
-                        <Text
-                          style={[
-                            styles.typeText,
-                            organisationType === 'PUBLIC_ENTITY' &&
-                              styles.selectedTypeText,
-                          ]}
-                        >
-                          PUBLIC ENTITY
-                        </Text>
-                      </Pressable>
-
-                    </View>
-
-                    <Text style={styles.typeHint}>
-                      {organisationType === 'NPO'
-                        ? 'Non-Profit Organisation participating in a DSAC-funded programme.'
-                        : 'Public Entity participating in a DSAC-funded programme.'}
-                    </Text>
-
-                  </View>
-
-                  <View
-                    style={
-                      isDesktop
-                        ? styles.fieldHalf
-                        : styles.fieldFull
-                    }
-                  >
-                    <Text style={styles.label}>
-                      REGISTRATION NUMBER *
-                    </Text>
-
-                    <TextInput
-                      style={styles.input}
-                      placeholder={
-                        organisationType === 'NPO'
-                          ? 'e.g. NPO registration number'
-                          : 'e.g. public entity registration/reference number'
-                      }
-                      placeholderTextColor="#888888"
-                      value={registrationNumber}
-                      onChangeText={setRegistrationNumber}
-                      editable={!saving}
-                    />
-                  </View>
-
-                  <View
-                    style={
-                      isDesktop
-                        ? styles.fieldHalf
-                        : styles.fieldFull
-                    }
-                  >
-                    <Text style={styles.label}>
-                      ORGANISATION EMAIL *
-                    </Text>
-
-                    <TextInput
-                      style={styles.input}
-                      placeholder="organisation@example.org"
-                      placeholderTextColor="#888888"
-                      value={email}
-                      onChangeText={setEmail}
-                      autoCapitalize="none"
-                      keyboardType="email-address"
-                      editable={!saving}
-                    />
-                  </View>
-
-                </View>
-
-              </View>
-
-              {/* =================================================
-                  FIRST ADMINISTRATOR
-              ================================================= */}
-
-              <View style={styles.formSection}>
-
-                <View style={styles.sectionHeader}>
-                  <View style={styles.sectionOrangeBar} />
-
-                  <View>
-                    <Text style={styles.sectionTitle}>
-                      FIRST ORGANISATION ADMINISTRATOR
-                    </Text>
-
-                    <Text style={styles.sectionSubtitle}>
-                      Initial user responsible for the organisation workspace
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.adminIntro}>
-                  <View style={styles.adminIntroAccent} />
-
-                  <Text style={styles.adminDescription}>
-                    This user will receive access to the organisation
-                    workspace and will manage the organisation's staff.
-                  </Text>
-                </View>
-
-                <View style={styles.formGrid}>
-
-                  <View
-                    style={
-                      isDesktop
-                        ? styles.fieldHalf
-                        : styles.fieldFull
-                    }
-                  >
-                    <Text style={styles.label}>
-                      ADMINISTRATOR FULL NAME *
-                    </Text>
-
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Enter administrator full name"
-                      placeholderTextColor="#888888"
-                      value={adminFullName}
-                      onChangeText={setAdminFullName}
-                      editable={!saving}
-                    />
-                  </View>
-
-                  <View
-                    style={
-                      isDesktop
-                        ? styles.fieldHalf
-                        : styles.fieldFull
-                    }
-                  >
-                    <Text style={styles.label}>
-                      ADMINISTRATOR EMAIL *
-                    </Text>
-
-                    <TextInput
-                      style={styles.input}
-                      placeholder="admin@example.org"
-                      placeholderTextColor="#888888"
-                      value={adminEmail}
-                      onChangeText={setAdminEmail}
-                      autoCapitalize="none"
-                      keyboardType="email-address"
-                      editable={!saving}
-                    />
-                  </View>
-
-                  <View
-                    style={
-                      isDesktop
-                        ? styles.fieldHalf
-                        : styles.fieldFull
-                    }
-                  >
-                    <Text style={styles.label}>
-                      TEMPORARY PASSWORD *
-                    </Text>
-
-                    <View style={styles.passwordContainer}>
-
-                      <TextInput
-                        style={styles.passwordInput}
-                        placeholder="Minimum 8 characters"
-                        placeholderTextColor="#888888"
-                        value={adminPassword}
-                        onChangeText={setAdminPassword}
-                        secureTextEntry={
-                          !adminPasswordVisible
-                        }
-                        autoCapitalize="none"
-                        editable={!saving}
-                      />
-
-                      <Pressable
-                        style={styles.passwordButton}
-                        onPress={() =>
-                          setAdminPasswordVisible(
-                            !adminPasswordVisible
-                          )
-                        }
-                        disabled={saving}
-                      >
-                        <Text style={styles.passwordButtonText}>
-                          {adminPasswordVisible
-                            ? 'HIDE'
-                            : 'SHOW'}
-                        </Text>
-                      </Pressable>
-
-                    </View>
-                  </View>
-
-                  <View
-                    style={
-                      isDesktop
-                        ? styles.fieldHalf
-                        : styles.fieldFull
-                    }
-                  >
-                    <Text style={styles.label}>
-                      CONFIRM TEMPORARY PASSWORD *
-                    </Text>
-
-                    <TextInput
-                      style={styles.input}
-                      placeholder="Re-enter temporary password"
-                      placeholderTextColor="#888888"
-                      value={adminPasswordConfirm}
-                      onChangeText={
-                        setAdminPasswordConfirm
-                      }
-                      secureTextEntry={
-                        !adminPasswordVisible
-                      }
-                      autoCapitalize="none"
-                      editable={!saving}
-                    />
-                  </View>
-
-                </View>
-
-                {/* Security notice */}
-
-                <View style={styles.securityNotice}>
-
-                  <View style={styles.securityIcon}>
-                    <Text style={styles.securityIconText}>
-                      !
-                    </Text>
-                  </View>
-
-                  <View style={styles.securityContent}>
-
-                    <Text style={styles.securityNoticeTitle}>
-                      SECURITY INFORMATION
-                    </Text>
-
-                    <Text style={styles.securityNoticeText}>
-                      The password is sent directly to Supabase
-                      Authentication through the secure server-side
-                      provisioning function. It is not stored in the
-                      CIVITRACK database.
-                    </Text>
-
-                  </View>
-
-                </View>
-
-              </View>
-
-              {/* Form actions */}
-
-              <View style={styles.formActions}>
-
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.cancelButton,
-                    pressed && styles.cancelPressed,
-                  ]}
-                  onPress={resetForm}
-                  disabled={saving}
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={closeCreateForm}
+                  style={styles.closeFormButton}
                 >
-                  <Text style={styles.cancelText}>
+                  <Text style={styles.closeFormButtonText}>
+                    CLOSE
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formDivider} />
+
+              {/* ORGANISATION DETAILS */}
+              <Text style={styles.formGroupTitle}>
+                ORGANISATION DETAILS
+              </Text>
+
+              <View
+                style={[
+                  styles.formGrid,
+                  isDesktop && styles.formGridDesktop,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.field,
+                    isDesktop && styles.fieldHalf,
+                  ]}
+                >
+                  <Text style={styles.fieldLabel}>
+                    Organisation Name *
+                  </Text>
+
+                  <TextInput
+                    value={form.organisationName}
+                    onChangeText={(value) =>
+                      updateField(
+                        'organisationName',
+                        value
+                      )
+                    }
+                    placeholder="Enter organisation name"
+                    placeholderTextColor="#999"
+                    style={styles.input}
+                    editable={!creating}
+                  />
+                </View>
+
+                <View
+                  style={[
+                    styles.field,
+                    isDesktop && styles.fieldHalf,
+                  ]}
+                >
+                  <Text style={styles.fieldLabel}>
+                    Registration Number *
+                  </Text>
+
+                  <TextInput
+                    value={form.registrationNumber}
+                    onChangeText={(value) =>
+                      updateField(
+                        'registrationNumber',
+                        value
+                      )
+                    }
+                    placeholder="Enter registration number"
+                    placeholderTextColor="#999"
+                    style={styles.input}
+                    autoCapitalize="characters"
+                    editable={!creating}
+                  />
+                </View>
+
+                <View
+                  style={[
+                    styles.field,
+                    isDesktop && styles.fieldHalf,
+                  ]}
+                >
+                  <Text style={styles.fieldLabel}>
+                    Organisation Email *
+                  </Text>
+
+                  <TextInput
+                    value={form.email}
+                    onChangeText={(value) =>
+                      updateField('email', value)
+                    }
+                    placeholder="organisation@example.org"
+                    placeholderTextColor="#999"
+                    style={styles.input}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    editable={!creating}
+                  />
+                </View>
+
+                <View
+                  style={[
+                    styles.field,
+                    isDesktop && styles.fieldHalf,
+                  ]}
+                >
+                  <Text style={styles.fieldLabel}>
+                    Organisation Type *
+                  </Text>
+
+                  <View style={styles.typeRow}>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() =>
+                        updateField(
+                          'organisationType',
+                          'NPO'
+                        )
+                      }
+                      style={[
+                        styles.typeOption,
+                        form.organisationType ===
+                          'NPO' &&
+                          styles.typeOptionActive,
+                      ]}
+                      disabled={creating}
+                    >
+                      <Text
+                        style={[
+                          styles.typeOptionText,
+                          form.organisationType ===
+                            'NPO' &&
+                            styles.typeOptionTextActive,
+                        ]}
+                      >
+                        NPO
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() =>
+                        updateField(
+                          'organisationType',
+                          'PUBLIC_ENTITY'
+                        )
+                      }
+                      style={[
+                        styles.typeOption,
+                        form.organisationType ===
+                          'PUBLIC_ENTITY' &&
+                          styles.typeOptionActive,
+                      ]}
+                      disabled={creating}
+                    >
+                      <Text
+                        style={[
+                          styles.typeOptionText,
+                          form.organisationType ===
+                            'PUBLIC_ENTITY' &&
+                            styles.typeOptionTextActive,
+                        ]}
+                      >
+                        PUBLIC ENTITY
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
+              {/* ADMINISTRATOR */}
+              <Text style={styles.formGroupTitle}>
+                FIRST ORGANISATION ADMINISTRATOR
+              </Text>
+
+              <View
+                style={[
+                  styles.formGrid,
+                  isDesktop && styles.formGridDesktop,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.field,
+                    isDesktop && styles.fieldHalf,
+                  ]}
+                >
+                  <Text style={styles.fieldLabel}>
+                    Full Name *
+                  </Text>
+
+                  <TextInput
+                    value={form.adminFullName}
+                    onChangeText={(value) =>
+                      updateField(
+                        'adminFullName',
+                        value
+                      )
+                    }
+                    placeholder="Administrator full name"
+                    placeholderTextColor="#999"
+                    style={styles.input}
+                    editable={!creating}
+                  />
+                </View>
+
+                <View
+                  style={[
+                    styles.field,
+                    isDesktop && styles.fieldHalf,
+                  ]}
+                >
+                  <Text style={styles.fieldLabel}>
+                    Administrator Email *
+                  </Text>
+
+                  <TextInput
+                    value={form.adminEmail}
+                    onChangeText={(value) =>
+                      updateField(
+                        'adminEmail',
+                        value
+                      )
+                    }
+                    placeholder="admin@example.org"
+                    placeholderTextColor="#999"
+                    style={styles.input}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    editable={!creating}
+                  />
+                </View>
+
+                <View
+                  style={[
+                    styles.field,
+                    isDesktop && styles.fieldHalf,
+                  ]}
+                >
+                  <Text style={styles.fieldLabel}>
+                    Password *
+                  </Text>
+
+                  <View style={styles.passwordContainer}>
+                    <TextInput
+                      value={form.adminPassword}
+                      onChangeText={(value) =>
+                        updateField(
+                          'adminPassword',
+                          value
+                        )
+                      }
+                      placeholder="Minimum 8 characters"
+                      placeholderTextColor="#999"
+                      style={styles.passwordInput}
+                      secureTextEntry={
+                        !showAdminPassword
+                      }
+                      editable={!creating}
+                    />
+
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() =>
+                        setShowAdminPassword(
+                          (current) => !current
+                        )
+                      }
+                      style={styles.passwordButton}
+                    >
+                      <Text style={styles.passwordButtonText}>
+                        {showAdminPassword
+                          ? 'HIDE'
+                          : 'SHOW'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View
+                  style={[
+                    styles.field,
+                    isDesktop && styles.fieldHalf,
+                  ]}
+                >
+                  <Text style={styles.fieldLabel}>
+                    Confirm Password *
+                  </Text>
+
+                  <View style={styles.passwordContainer}>
+                    <TextInput
+                      value={form.confirmPassword}
+                      onChangeText={(value) =>
+                        updateField(
+                          'confirmPassword',
+                          value
+                        )
+                      }
+                      placeholder="Re-enter password"
+                      placeholderTextColor="#999"
+                      style={styles.passwordInput}
+                      secureTextEntry={
+                        !showConfirmPassword
+                      }
+                      editable={!creating}
+                    />
+
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() =>
+                        setShowConfirmPassword(
+                          (current) => !current
+                        )
+                      }
+                      style={styles.passwordButton}
+                    >
+                      <Text style={styles.passwordButtonText}>
+                        {showConfirmPassword
+                          ? 'HIDE'
+                          : 'SHOW'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+
+              {/* SECURITY NOTICE */}
+              <View style={styles.securityNotice}>
+                <View style={styles.securityIcon}>
+                  <Text style={styles.securityIconText}>
+                    !
+                  </Text>
+                </View>
+
+                <View style={styles.securityTextContainer}>
+                  <Text style={styles.securityTitle}>
+                    SECURITY NOTICE
+                  </Text>
+
+                  <Text style={styles.securityText}>
+                    The first administrator will receive
+                    access to manage the organisation.
+                    Please ensure the administrator email
+                    address is correct.
+                  </Text>
+                </View>
+              </View>
+
+              {/* FORM ACTIONS */}
+              <View style={styles.formActions}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={resetForm}
+                  disabled={creating}
+                  style={[
+                    styles.clearButton,
+                    creating &&
+                      styles.disabledButton,
+                  ]}
+                >
+                  <Text style={styles.clearButtonText}>
+                    CLEAR FORM
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={closeCreateForm}
+                  disabled={creating}
+                  style={[
+                    styles.cancelButton,
+                    creating &&
+                      styles.disabledButton,
+                  ]}
+                >
+                  <Text style={styles.cancelButtonText}>
                     CANCEL
                   </Text>
-                </Pressable>
+                </TouchableOpacity>
 
-                <Pressable
-                  style={[
-                    styles.saveButton,
-                    saving && styles.saveDisabled,
-                  ]}
+                <TouchableOpacity
+                  activeOpacity={0.7}
                   onPress={createOrganisation}
-                  disabled={saving}
+                  disabled={creating}
+                  style={[
+                    styles.submitButton,
+                    creating &&
+                      styles.submitButtonDisabled,
+                  ]}
                 >
-
-                  {saving ? (
+                  {creating ? (
                     <>
                       <ActivityIndicator
                         size="small"
-                        color="#FFFFFF"
+                        color={WHITE}
                       />
 
-                      <Text style={styles.savingText}>
-                        CREATING...
+                      <Text
+                        style={styles.submitButtonText}
+                      >
+                        REGISTERING...
                       </Text>
                     </>
                   ) : (
-                    <Text style={styles.saveText}>
-                      CREATE ORGANISATION
+                    <Text
+                      style={styles.submitButtonText}
+                    >
+                      REGISTER ORGANISATION
                     </Text>
                   )}
-
-                </Pressable>
-
+                </TouchableOpacity>
               </View>
-
             </View>
           )}
 
-          {/* =================================================
-              INFORMATION NOTICE
-          ================================================= */}
+          {/* REGISTERED ORGANISATIONS */}
+          <View style={styles.organisationsSection}>
+            <View style={styles.sectionHeader}>
+              <View>
+                <Text style={styles.sectionTitle}>
+                  REGISTERED ORGANISATIONS
+                </Text>
 
-          <View style={styles.infoCard}>
-
-            <View style={styles.infoAccent} />
-
-            <View style={styles.infoIcon}>
-              <Text style={styles.infoIconText}>
-                i
-              </Text>
-            </View>
-
-            <View style={styles.infoContent}>
-
-              <Text style={styles.infoTitle}>
-                ORGANISATION ACCESS
-              </Text>
-
-              <Text style={styles.infoText}>
-                Organisations do not self-register. A DSAC
-                administrator creates the organisation and
-                provisions its first Organisation Administrator.
-                The organisation may be an NPO or a Public Entity.
-              </Text>
-
-            </View>
-
-          </View>
-
-          {/* =================================================
-              REGISTERED ORGANISATIONS
-          ================================================= */}
-
-          <View style={styles.sectionHeader}>
-
-            <View style={styles.sectionOrangeBar} />
-
-            <View>
-              <Text style={styles.sectionTitle}>
-                REGISTERED ORGANISATIONS
-              </Text>
-
-              <Text style={styles.sectionSubtitle}>
-                Current organisations registered in CIVITRACK
-              </Text>
-            </View>
-
-          </View>
-
-          {loading ? (
-
-            <View style={styles.loadingState}>
-
-              <ActivityIndicator
-                size="large"
-                color="#009366"
-              />
-
-              <Text style={styles.loadingText}>
-                Loading organisations...
-              </Text>
-
-            </View>
-
-          ) : organisations.length === 0 ? (
-
-            <View style={styles.emptyState}>
-
-              <View style={styles.emptyIcon}>
-                <Text style={styles.emptyIconText}>
-                  +
+                <Text style={styles.sectionSubtitle}>
+                  Organisations currently registered on
+                  CIVITRACK
                 </Text>
               </View>
 
-              <Text style={styles.emptyTitle}>
-                NO ORGANISATIONS REGISTERED
-              </Text>
-
-              <Text style={styles.emptyText}>
-                Create the first organisation to begin the
-                CIVITRACK accountability workflow.
-              </Text>
-
-              <Pressable
-                style={({ pressed }) => [
-                  styles.emptyButton,
-                  pressed && styles.emptyButtonPressed,
-                ]}
-                onPress={() =>
-                  setShowForm(true)
-                }
-              >
-                <Text style={styles.emptyButtonText}>
-                  + CREATE FIRST ORGANISATION
+              <View style={styles.countBadge}>
+                <Text style={styles.countBadgeText}>
+                  {organisations.length}
                 </Text>
-              </Pressable>
-
+              </View>
             </View>
 
-          ) : (
+            <View style={styles.formDivider} />
 
-            <View style={styles.organisationList}>
+            {organisations.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyTitle}>
+                  NO ORGANISATIONS REGISTERED
+                </Text>
 
-              {organisations.map(
-                (organisation) => (
+                <Text style={styles.emptyText}>
+                  There are currently no organisations
+                  registered on the system.
+                </Text>
 
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    console.log(
+                      'EMPTY STATE REGISTER BUTTON PRESSED'
+                    );
+
+                    setShowCreateForm(true);
+                  }}
+                  style={styles.emptyRegisterButton}
+                >
+                  <Text
+                    style={styles.emptyRegisterButtonText}
+                  >
+                    + REGISTER ORGANISATION
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.organisationsList}>
+                {organisations.map((organisation) => (
                   <View
                     key={organisation.id}
                     style={styles.organisationCard}
                   >
-
-                    {/* Accent */}
-
                     <View
-                      style={[
-                        styles.organisationAccent,
-                        organisation.status !== 'ACTIVE' &&
-                          styles.organisationAccentInactive,
-                      ]}
-                    />
-
-                    {/* Main row */}
-
-                    <View
-                      style={[
-                        styles.organisationHeader,
-                        !isDesktop &&
-                          styles.organisationHeaderTablet,
-                      ]}
+                      style={styles.organisationCardTop}
                     >
-
                       <View
                         style={
-                          styles.organisationHeaderContent
+                          styles.organisationNameContainer
                         }
                       >
-
                         <Text
                           style={
                             styles.organisationName
@@ -1654,84 +1192,67 @@ export default function OrganisationsScreen() {
 
                         <Text
                           style={
-                            styles.organisationRegistration
+                            styles.registrationText
                           }
                         >
-                          REGISTRATION: {
-                            organisation.registration_number ||
-                            '—'
-                          }
+                          REGISTRATION:{' '}
+                          {organisation.registration_number ||
+                            'NOT PROVIDED'}
                         </Text>
-
-                      </View>
-
-                      <View
-                        style={[
-                          styles.typeBadge,
-                          organisation.organisation_type ===
-                            'PUBLIC_ENTITY' &&
-                            styles.publicEntityBadge,
-                        ]}
-                      >
-
-                        <Text style={styles.typeBadgeText}>
-                          {organisation.organisation_type ===
-                          'PUBLIC_ENTITY'
-                            ? 'PUBLIC ENTITY'
-                            : 'NPO'}
-                        </Text>
-
                       </View>
 
                       <View
                         style={[
                           styles.statusBadge,
-                          organisation.status === 'ACTIVE' &&
-                            styles.activeBadge,
+                          organisation.status ===
+                            'ACTIVE'
+                            ? styles.statusActive
+                            : styles.statusInactive,
                         ]}
                       >
-
-                        <View
+                        <Text
                           style={[
-                            styles.statusDotSmall,
-                            organisation.status !== 'ACTIVE' &&
-                              styles.statusDotInactive,
+                            styles.statusText,
+                            organisation.status ===
+                              'ACTIVE'
+                              ? styles.statusTextActive
+                              : styles.statusTextInactive,
                           ]}
-                        />
-
-                        <Text style={styles.statusText}>
-                          {organisation.status || 'UNKNOWN'}
+                        >
+                          {organisation.status ||
+                            'UNKNOWN'}
                         </Text>
-
                       </View>
-
                     </View>
 
-                    {/* Details */}
-
-                    <View
-                      style={[
-                        styles.organisationDetails,
-                        !isDesktop &&
-                          styles.organisationDetailsTablet,
-                      ]}
-                    >
-
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>
+                    <View style={styles.organisationDetails}>
+                      <View
+                        style={
+                          styles.detailColumn
+                        }
+                      >
+                        <Text
+                          style={styles.detailLabel}
+                        >
                           TYPE
                         </Text>
 
-                        <Text style={styles.detailValue}>
-                          {organisation.organisation_type ===
-                          'PUBLIC_ENTITY'
-                            ? 'Public Entity'
-                            : 'NPO'}
+                        <Text
+                          style={styles.detailValue}
+                        >
+                          {organisation.organisation_type ||
+                            '—'}
                         </Text>
                       </View>
 
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>
+                      <View
+                        style={
+                          styles.detailColumn
+                        }
+                      >
+                        <Text
+                          style={styles.detailLabel}
+                        >
                           EMAIL
                         </Text>
 
@@ -1743,603 +1264,530 @@ export default function OrganisationsScreen() {
                         </Text>
                       </View>
 
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>
+                      <View
+                        style={
+                          styles.detailColumn
+                        }
+                      >
+                        <Text
+                          style={styles.detailLabel}
+                        >
+                          PHONE
+                        </Text>
+
+                        <Text
+                          style={styles.detailValue}
+                        >
+                          {organisation.phone || '—'}
+                        </Text>
+                      </View>
+
+                      <View
+                        style={
+                          styles.detailColumn
+                        }
+                      >
+                        <Text
+                          style={styles.detailLabel}
+                        >
                           PROVINCE
                         </Text>
 
-                        <Text style={styles.detailValue}>
+                        <Text
+                          style={styles.detailValue}
+                        >
                           {organisation.province || '—'}
                         </Text>
                       </View>
 
-                      <View style={styles.detailItem}>
-                        <Text style={styles.detailLabel}>
+                      <View
+                        style={
+                          styles.detailColumn
+                        }
+                      >
+                        <Text
+                          style={styles.detailLabel}
+                        >
                           REGISTERED
                         </Text>
 
-                        <Text style={styles.detailValue}>
-                          {formatDate(
-                            organisation.created_at
-                          )}
+                        <Text
+                          style={styles.detailValue}
+                        >
+                          {organisation.created_at
+                            ? new Date(
+                                organisation.created_at
+                              ).toLocaleDateString(
+                                'en-ZA'
+                              )
+                            : '—'}
                         </Text>
                       </View>
-
                     </View>
-
                   </View>
-
-                )
-              )}
-
-            </View>
-
-          )}
-
+                ))}
+              </View>
+            )}
+          </View>
         </View>
 
-        {/* =====================================================
-            FOOTER
-        ===================================================== */}
-
+        {/* FOOTER */}
         <View style={styles.footer}>
-
-          <View style={styles.footerFlag}>
-            <View style={styles.footerRed} />
-            <View style={styles.footerGreen} />
-            <View style={styles.footerBlue} />
-            <View style={styles.footerGold} />
-          </View>
-
-          <View style={styles.footerContent}>
-
+          <View style={styles.footerInner}>
             <Text style={styles.footerTitle}>
-              sport, arts & culture
+              CIVITRACK
             </Text>
 
-            <Text style={styles.footerDepartment}>
+            <Text style={styles.footerText}>
+              Government Organisation Management System
+            </Text>
+
+            <Text style={styles.footerText}>
               Department of Sport, Arts and Culture
             </Text>
 
-            <Text style={styles.footerRepublic}>
-              REPUBLIC OF SOUTH AFRICA
-            </Text>
-
-            <Text style={styles.footerSystem}>
-              CIVITRACK — Public Funding &
-              Accountability Management System
-            </Text>
-
-            <View style={styles.footerLine} />
-
             <Text style={styles.footerCopyright}>
-              © 2026 Department of Sport, Arts and Culture
+              © {new Date().getFullYear()} Government of
+              South Africa
             </Text>
-
           </View>
-
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-
-  /* =========================================================
-     BASE
-  ========================================================= */
-
   safeArea: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: WHITE,
   },
 
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: LIGHT,
   },
 
-  content: {
+  contentContainer: {
     flexGrow: 1,
   },
 
-  /* =========================================================
-     SOUTH AFRICAN FLAG STRIP
-  ========================================================= */
+  loadingScreen: {
+    flex: 1,
+    backgroundColor: WHITE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+
+  loadingText: {
+    marginTop: 14,
+    color: MUTED,
+    fontSize: 14,
+  },
+
+  accessTitle: {
+    color: DARK,
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+
+  accessText: {
+    color: MUTED,
+    fontSize: 15,
+    textAlign: 'center',
+    maxWidth: 500,
+    lineHeight: 22,
+  },
+
+  backButton: {
+    marginTop: 25,
+    backgroundColor: ORANGE,
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    borderRadius: 5,
+  },
+
+  backButtonText: {
+    color: WHITE,
+    fontSize: 13,
+    fontWeight: '800',
+  },
 
   flagStrip: {
-    height: 5,
+    height: 7,
     width: '100%',
     flexDirection: 'row',
   },
 
-  flagSection: {
-    flex: 1,
-  },
-
   flagRed: {
-    backgroundColor: '#F05D2A',
-  },
-
-  flagWhite: {
-    backgroundColor: '#FFFFFF',
-  },
-
-  flagGreen: {
-    flex: 2,
-    backgroundColor: '#009366',
-  },
-
-  flagGold: {
-    backgroundColor: '#F7941D',
+    flex: 1,
+    backgroundColor: '#DE3831',
   },
 
   flagBlue: {
-    backgroundColor: '#0053A1',
+    flex: 1,
+    backgroundColor: '#002395',
   },
 
-  flagBlack: {
-    backgroundColor: '#000000',
+  flagGreen: {
+    flex: 1,
+    backgroundColor: '#007A4D',
   },
 
-  /* =========================================================
-     GOVERNMENT HEADER
-  ========================================================= */
+  flagYellow: {
+    flex: 1,
+    backgroundColor: '#FFB81C',
+  },
 
-  topHeader: {
-    backgroundColor: '#FFFFFF',
-    minHeight: 150,
+  govHeader: {
+    backgroundColor: WHITE,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+  },
+
+  govHeaderInner: {
+    minHeight: 115,
+    width: '100%',
+    maxWidth: 1450,
+    alignSelf: 'center',
     paddingHorizontal: 24,
     paddingVertical: 18,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
   },
 
-  topHeaderTablet: {
-    paddingHorizontal: 20,
-    minHeight: 125,
-  },
-
-  brandArea: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minWidth: 330,
-    flexShrink: 1,
-  },
-
-  coatContainer: {
-    width: 92,
-    height: 95,
-    alignItems: 'center',
+  logoContainer: {
+    width: 80,
+    height: 80,
     justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 18,
   },
 
-  coatOfArms: {
-    width: 84,
-    height: 88,
+  saLogo: {
+    width: 75,
+    height: 75,
   },
 
-  brandText: {
-    marginLeft: 5,
-  },
-
-  brandTitle: {
-    color: '#F7941D',
-    fontSize: 21,
-    fontWeight: '500',
-    letterSpacing: -0.5,
-  },
-
-  departmentText: {
-    color: '#111111',
-    fontSize: 10,
-    fontWeight: '500',
-    marginTop: 1,
-  },
-
-  republicText: {
-    color: '#111111',
-    fontSize: 10,
-    fontWeight: '800',
-    marginTop: 1,
-  },
-
-  sloganArea: {
+  govTextContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
   },
 
-  slogan: {
-    color: '#F7941D',
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-    textAlign: 'center',
-  },
-
-  sloganLine: {
-    width: 110,
-    height: 2,
-    backgroundColor: '#009366',
-    marginTop: 8,
-  },
-
-  userArea: {
-    alignItems: 'flex-end',
-    minWidth: 150,
-    paddingRight: 5,
-  },
-
-  userSmall: {
-    color: '#777777',
-    fontSize: 8,
-    fontWeight: '800',
-    letterSpacing: 0.7,
-  },
-
-  userRole: {
-    color: '#009366',
-    fontSize: 10,
+  govCountry: {
+    color: DARK,
+    fontSize: 20,
     fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+
+  govDepartment: {
+    color: GREEN,
+    fontSize: 14,
+    fontWeight: '800',
     marginTop: 4,
   },
 
-  userEmail: {
-    color: '#555555',
+  govSubtext: {
+    color: MUTED,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 4,
+    letterSpacing: 0.4,
+  },
+
+  userHeader: {
+    alignItems: 'flex-end',
+    minWidth: 230,
+  },
+
+  signedInLabel: {
     fontSize: 9,
+    color: MUTED,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+
+  userRole: {
+    color: DARK,
+    fontSize: 12,
+    fontWeight: '900',
     marginTop: 3,
-    maxWidth: 180,
+  },
+
+  userEmail: {
+    color: MUTED,
+    fontSize: 11,
+    marginTop: 3,
   },
 
   dashboardButton: {
-    marginTop: 8,
+    marginTop: 9,
     borderWidth: 1,
-    borderColor: '#F7941D',
+    borderColor: ORANGE,
     paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-
-  dashboardButtonPressed: {
-    backgroundColor: '#FFF1E1',
+    paddingVertical: 7,
+    borderRadius: 4,
   },
 
   dashboardButtonText: {
-    color: '#F7941D',
-    fontSize: 8,
+    color: ORANGE,
+    fontSize: 10,
     fontWeight: '900',
   },
-
-  /* =========================================================
-     CIVITRACK SYSTEM BAR
-  ========================================================= */
 
   systemBar: {
-    backgroundColor: '#FFFFFF',
-    minHeight: 74,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
+    backgroundColor: DARK,
+    minHeight: 48,
+  },
+
+  systemBarInner: {
+    width: '100%',
+    maxWidth: 1450,
+    alignSelf: 'center',
+    minHeight: 48,
+    paddingHorizontal: 24,
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#DDDDDD',
   },
 
-  systemName: {
-    color: '#222222',
-    fontSize: 25,
-    fontWeight: '900',
-    letterSpacing: 2,
-  },
-
-  systemDescription: {
-    color: '#777777',
-    fontSize: 9,
-    marginTop: 2,
-  },
-
-  systemRight: {
+  systemBrand: {
     flexDirection: 'row',
     alignItems: 'center',
   },
 
-  flagMini: {
-    width: 42,
-    height: 25,
-    marginRight: 15,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-  },
-
-  miniRed: {
-    flex: 1,
-    backgroundColor: '#F05D2A',
-  },
-
-  miniGreen: {
-    flex: 1,
-    backgroundColor: '#009366',
-  },
-
-  miniBlue: {
-    flex: 1,
-    backgroundColor: '#0053A1',
-  },
-
-  statusBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderLeftWidth: 3,
-    borderLeftColor: '#009366',
-    paddingLeft: 10,
-  },
-
-  statusDot: {
+  systemDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#009366',
+    backgroundColor: GOLD,
     marginRight: 8,
   },
 
-  statusLabel: {
-    color: '#888888',
-    fontSize: 7,
-    fontWeight: '800',
-  },
-
-  statusValue: {
-    color: '#009366',
-    fontSize: 9,
-    fontWeight: '900',
-    marginTop: 2,
-  },
-
-  /* =========================================================
-     NAVIGATION
-  ========================================================= */
-
-  navigation: {
-    backgroundColor: '#F7941D',
-    minHeight: 56,
-    paddingHorizontal: 22,
-    flexDirection: 'row',
-    alignItems: 'stretch',
-    flexWrap: 'wrap',
-  },
-
-  navItem: {
-    paddingHorizontal: 18,
-    minHeight: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  navActive: {
-    paddingHorizontal: 18,
-    minHeight: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 4,
-    borderTopColor: '#009366',
-  },
-
-  navText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  navActiveText: {
-    color: '#222222',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  /* =========================================================
-     MAIN
-  ========================================================= */
-
-  main: {
-    maxWidth: 1250,
-    width: '100%',
-    alignSelf: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 28,
-  },
-
-  mainTablet: {
-    paddingHorizontal: 22,
-  },
-
-  /* =========================================================
-     BREADCRUMB
-  ========================================================= */
-
-  breadcrumb: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 22,
-  },
-
-  breadcrumbHome: {
-    color: '#009366',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  breadcrumbSlash: {
-    color: '#AAAAAA',
-    fontSize: 9,
-    marginHorizontal: 8,
-  },
-
-  breadcrumbCurrent: {
-    color: '#777777',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-
-  /* =========================================================
-     PAGE HEADER
-  ========================================================= */
-
-  pageHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 32,
-  },
-
-  pageHeaderTablet: {
-    flexWrap: 'wrap',
-  },
-
-  pageHeadingLeft: {
-    flex: 1,
-    paddingRight: 20,
-  },
-
-  orangeHeadingLine: {
-    width: 42,
-    height: 4,
-    backgroundColor: '#F7941D',
-    marginBottom: 10,
-  },
-
-  pageTitle: {
-    color: '#222222',
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: -0.4,
-  },
-
-  pageDescription: {
-    color: '#666666',
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 7,
-    maxWidth: 650,
-  },
-
-  createButton: {
-    backgroundColor: '#009366',
-    minHeight: 44,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 20,
-  },
-
-  createButtonPressed: {
-    backgroundColor: '#007A54',
-  },
-
-  createButtonText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  /* =========================================================
-     SECTION HEADER
-  ========================================================= */
-
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 17,
-  },
-
-  sectionOrangeBar: {
-    width: 4,
-    height: 31,
-    backgroundColor: '#F7941D',
-    marginRight: 10,
-  },
-
-  sectionTitle: {
-    color: '#333333',
-    fontSize: 11,
+  systemName: {
+    color: WHITE,
+    fontSize: 14,
     fontWeight: '900',
     letterSpacing: 1,
   },
 
-  sectionSubtitle: {
-    color: '#888888',
+  systemDescription: {
+    color: '#BDBDBD',
     fontSize: 10,
-    marginTop: 3,
+    fontWeight: '600',
+    marginLeft: 12,
   },
 
-  /* =========================================================
-     FORM
-  ========================================================= */
-
-  formCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    marginBottom: 25,
-    padding: 25,
+  systemStatus: {
+    color: '#D9D9D9',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
   },
 
-  formHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  navigation: {
+    backgroundColor: WHITE,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
-    paddingBottom: 20,
-    marginBottom: 22,
+    borderBottomColor: BORDER,
+    zIndex: 10,
   },
 
-  formHeaderAccent: {
-    width: 5,
-    height: 50,
-    backgroundColor: '#009366',
-    marginRight: 12,
+  navigationInner: {
+    paddingHorizontal: 24,
   },
 
-  formTitle: {
-    color: '#222222',
+  navItem: {
+    paddingHorizontal: 17,
+    paddingVertical: 14,
+    marginRight: 4,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+
+  navItemActive: {
+    borderBottomColor: ORANGE,
+  },
+
+  navText: {
+    color: MUTED,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+
+  navTextActive: {
+    color: DARK,
+  },
+
+  mainContent: {
+    width: '100%',
+    paddingHorizontal: 18,
+    paddingVertical: 24,
+  },
+
+  mainContentDesktop: {
+    maxWidth: 1450,
+    alignSelf: 'center',
+    paddingHorizontal: 32,
+  },
+
+  breadcrumb: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+
+  breadcrumbText: {
+    color: MUTED,
+    fontSize: 10,
+    fontWeight: '800',
+  },
+
+  breadcrumbSeparator: {
+    color: '#AAAAAA',
+    marginHorizontal: 8,
+    fontSize: 10,
+  },
+
+  pageHeader: {
+    position: 'relative',
+    zIndex: 1000,
+    elevation: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 25,
+    gap: 15,
+  },
+
+  pageTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+
+  orangeAccent: {
+    width: 6,
+    height: 48,
+    backgroundColor: ORANGE,
+    marginRight: 13,
+  },
+
+  pageTitle: {
+    color: DARK,
+    fontSize: 27,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+
+  pageSubtitle: {
+    color: MUTED,
+    fontSize: 13,
+    marginTop: 4,
+  },
+
+  actionRow: {
+    position: 'relative',
+    zIndex: 9999,
+    elevation: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  registerButton: {
+    position: 'relative',
+    zIndex: 9999,
+    elevation: 50,
+    backgroundColor: ORANGE,
+    minHeight: 50,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  registerButtonText: {
+    color: WHITE,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+
+  formSection: {
+    position: 'relative',
+    zIndex: 5,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderTopWidth: 4,
+    borderTopColor: ORANGE,
+    padding: 22,
+    marginBottom: 25,
+  },
+
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 15,
+  },
+
+  sectionTitle: {
+    color: DARK,
     fontSize: 17,
     fontWeight: '900',
     letterSpacing: 0.3,
   },
 
-  formDescription: {
-    color: '#777777',
-    fontSize: 11,
-    lineHeight: 17,
-    marginTop: 5,
-    maxWidth: 700,
+  sectionSubtitle: {
+    color: MUTED,
+    fontSize: 12,
+    marginTop: 4,
   },
 
-  formSection: {
-    marginBottom: 25,
+  closeFormButton: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 4,
+  },
+
+  closeFormButtonText: {
+    color: DARK,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  formDivider: {
+    height: 1,
+    backgroundColor: BORDER,
+    marginVertical: 20,
+  },
+
+  formGroupTitle: {
+    color: DARK,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    marginBottom: 14,
   },
 
   formGrid: {
+    width: '100%',
+  },
+
+  formGridDesktop: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
 
-  fieldFull: {
+  field: {
+    marginBottom: 17,
     width: '100%',
   },
 
@@ -2347,598 +1795,378 @@ const styles = StyleSheet.create({
     width: '48.5%',
   },
 
-  label: {
-    color: '#333333',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.7,
-    marginTop: 14,
+  fieldLabel: {
+    color: DARK,
+    fontSize: 11,
+    fontWeight: '800',
     marginBottom: 7,
   },
 
   input: {
-    height: 46,
-    backgroundColor: '#FAFAFA',
+    width: '100%',
+    minHeight: 46,
     borderWidth: 1,
-    borderColor: '#CCCCCC',
-    paddingHorizontal: 13,
-    color: '#222222',
+    borderColor: BORDER,
+    backgroundColor: WHITE,
+    borderRadius: 4,
+    paddingHorizontal: 12,
+    color: DARK,
     fontSize: 13,
   },
 
-  /* =========================================================
-     ORGANISATION TYPE
-  ========================================================= */
-
   typeRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
 
-  typeButton: {
-    minHeight: 44,
-    borderWidth: 1,
-    borderColor: '#CCCCCC',
-    paddingHorizontal: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-
-  selectedType: {
-    backgroundColor: '#009366',
-    borderColor: '#009366',
-  },
-
-  typeIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#AAAAAA',
-    marginRight: 8,
-  },
-
-  typeIndicatorSelected: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-
-  typeText: {
-    color: '#555555',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-  },
-
-  selectedTypeText: {
-    color: '#FFFFFF',
-  },
-
-  typeHint: {
-    color: '#888888',
-    fontSize: 10,
-    lineHeight: 16,
-    marginTop: 7,
-  },
-
-  /* =========================================================
-     ADMINISTRATOR
-  ========================================================= */
-
-  adminIntro: {
-    flexDirection: 'row',
-    marginBottom: 5,
-  },
-
-  adminIntroAccent: {
-    width: 3,
-    backgroundColor: '#0053A1',
-    marginRight: 9,
-  },
-
-  adminDescription: {
-    color: '#777777',
-    fontSize: 11,
-    lineHeight: 17,
+  typeOption: {
     flex: 1,
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: WHITE,
+  },
+
+  typeOptionActive: {
+    backgroundColor: GREEN,
+    borderColor: GREEN,
+  },
+
+  typeOptionText: {
+    color: MUTED,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+
+  typeOptionTextActive: {
+    color: WHITE,
   },
 
   passwordContainer: {
-    height: 46,
+    width: '100%',
+    minHeight: 46,
     borderWidth: 1,
-    borderColor: '#CCCCCC',
-    backgroundColor: '#FAFAFA',
+    borderColor: BORDER,
+    borderRadius: 4,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: WHITE,
   },
 
   passwordInput: {
     flex: 1,
-    height: 44,
-    paddingHorizontal: 13,
-    color: '#222222',
+    minHeight: 44,
+    paddingHorizontal: 12,
+    color: DARK,
     fontSize: 13,
   },
 
   passwordButton: {
-    height: 44,
-    paddingHorizontal: 13,
+    paddingHorizontal: 12,
+    minHeight: 44,
     justifyContent: 'center',
-    alignItems: 'center',
     borderLeftWidth: 1,
-    borderLeftColor: '#DDDDDD',
+    borderLeftColor: BORDER,
   },
 
   passwordButtonText: {
-    color: '#009366',
-    fontSize: 9,
+    color: BLUE,
+    fontSize: 10,
     fontWeight: '900',
   },
 
-  /* =========================================================
-     SECURITY NOTICE
-  ========================================================= */
-
   securityNotice: {
-    marginTop: 20,
-    backgroundColor: '#F4F7FA',
-    borderWidth: 1,
-    borderColor: '#DCE3E8',
-    borderLeftWidth: 4,
-    borderLeftColor: '#009366',
-    padding: 14,
     flexDirection: 'row',
+    backgroundColor: '#FFF8E7',
+    borderWidth: 1,
+    borderColor: '#F0D78A',
+    padding: 14,
+    borderRadius: 4,
+    marginTop: 5,
   },
 
   securityIcon: {
-    width: 27,
-    height: 27,
-    borderRadius: 14,
-    backgroundColor: '#009366',
-    alignItems: 'center',
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    backgroundColor: ORANGE,
     justifyContent: 'center',
-    marginRight: 10,
+    alignItems: 'center',
+    marginRight: 11,
   },
 
   securityIconText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+    color: WHITE,
     fontWeight: '900',
   },
 
-  securityContent: {
+  securityTextContainer: {
     flex: 1,
   },
 
-  securityNoticeTitle: {
-    color: '#222222',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-  },
-
-  securityNoticeText: {
-    color: '#666666',
+  securityTitle: {
+    color: DARK,
     fontSize: 10,
-    lineHeight: 16,
-    marginTop: 4,
+    fontWeight: '900',
+    marginBottom: 3,
   },
 
-  /* =========================================================
-     FORM ACTIONS
-  ========================================================= */
+  securityText: {
+    color: '#665A36',
+    fontSize: 11,
+    lineHeight: 17,
+  },
 
   formActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
-    paddingTop: 20,
-    marginTop: 5,
-    gap: 10,
+    gap: 9,
+    marginTop: 22,
+    flexWrap: 'wrap',
+  },
+
+  clearButton: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 16,
+    minHeight: 45,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 4,
+  },
+
+  clearButtonText: {
+    color: DARK,
+    fontSize: 10,
+    fontWeight: '900',
   },
 
   cancelButton: {
-    minHeight: 43,
-    paddingHorizontal: 20,
     borderWidth: 1,
-    borderColor: '#CCCCCC',
+    borderColor: '#BDBDBD',
+    paddingHorizontal: 16,
+    minHeight: 45,
     justifyContent: 'center',
     alignItems: 'center',
+    borderRadius: 4,
   },
 
-  cancelPressed: {
-    backgroundColor: '#F5F5F5',
-  },
-
-  cancelText: {
-    color: '#555555',
-    fontSize: 9,
+  cancelButtonText: {
+    color: MUTED,
+    fontSize: 10,
     fontWeight: '900',
   },
 
-  saveButton: {
-    minHeight: 43,
-    minWidth: 190,
-    backgroundColor: '#009366',
+  submitButton: {
+    backgroundColor: GREEN,
     paddingHorizontal: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    minHeight: 45,
+    borderRadius: 4,
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
   },
 
-  saveDisabled: {
+  submitButtonDisabled: {
     opacity: 0.65,
   },
 
-  saveText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-  },
-
-  savingText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-  },
-
-  /* =========================================================
-     INFORMATION CARD
-  ========================================================= */
-
-  infoCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    padding: 17,
-    marginBottom: 30,
-    flexDirection: 'row',
-  },
-
-  infoAccent: {
-    width: 4,
-    backgroundColor: '#F7941D',
-    marginRight: 13,
-  },
-
-  infoIcon: {
-    width: 31,
-    height: 31,
-    borderRadius: 16,
-    backgroundColor: '#0053A1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-
-  infoIconText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '900',
-  },
-
-  infoContent: {
-    flex: 1,
-  },
-
-  infoTitle: {
-    color: '#222222',
+  submitButtonText: {
+    color: WHITE,
     fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 0.6,
-  },
-
-  infoText: {
-    color: '#666666',
-    fontSize: 10,
-    lineHeight: 16,
-    marginTop: 4,
-  },
-
-  /* =========================================================
-     LOADING / EMPTY
-  ========================================================= */
-
-  loadingState: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    minHeight: 180,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  loadingText: {
-    color: '#777777',
-    fontSize: 11,
-    marginTop: 10,
-  },
-
-  emptyState: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    minHeight: 260,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 35,
-  },
-
-  emptyIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#009366',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  emptyIconText: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '300',
-  },
-
-  emptyTitle: {
-    color: '#222222',
-    fontSize: 14,
-    fontWeight: '900',
-    marginTop: 14,
-    letterSpacing: 0.5,
-  },
-
-  emptyText: {
-    color: '#777777',
-    fontSize: 11,
-    lineHeight: 17,
-    textAlign: 'center',
-    maxWidth: 500,
-    marginTop: 6,
-  },
-
-  emptyButton: {
-    marginTop: 18,
-    backgroundColor: '#009366',
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-  },
-
-  emptyButtonPressed: {
-    backgroundColor: '#007A54',
-  },
-
-  emptyButtonText: {
-    color: '#FFFFFF',
-    fontSize: 9,
-    fontWeight: '900',
-  },
-
-  /* =========================================================
-     ORGANISATION LIST
-  ========================================================= */
-
-  organisationList: {
-    gap: 12,
-  },
-
-  organisationCard: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#DDDDDD',
-    padding: 20,
-    overflow: 'hidden',
-  },
-
-  organisationAccent: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: 4,
-    backgroundColor: '#009366',
-  },
-
-  organisationAccentInactive: {
-    backgroundColor: '#F7941D',
-  },
-
-  organisationHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    paddingLeft: 8,
-  },
-
-  organisationHeaderTablet: {
-    flexWrap: 'wrap',
-  },
-
-  organisationHeaderContent: {
-    flex: 1,
-    minWidth: 220,
-  },
-
-  organisationName: {
-    color: '#222222',
-    fontSize: 15,
-    fontWeight: '900',
-  },
-
-  organisationRegistration: {
-    color: '#009366',
-    fontSize: 9,
-    fontWeight: '800',
-    marginTop: 5,
     letterSpacing: 0.3,
   },
 
-  typeBadge: {
-    backgroundColor: '#E8F3EE',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+  disabledButton: {
+    opacity: 0.5,
   },
 
-  publicEntityBadge: {
-    backgroundColor: '#E8F0F7',
+  organisationsSection: {
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 22,
   },
 
-  typeBadgeText: {
-    color: '#009366',
-    fontSize: 8,
-    fontWeight: '900',
-  },
-
-  statusBadge: {
-    backgroundColor: '#F3F3F3',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    flexDirection: 'row',
+  countBadge: {
+    minWidth: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: DARK,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
   },
 
-  activeBadge: {
-    backgroundColor: '#EFF7F3',
-  },
-
-  statusDotSmall: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#009366',
-    marginRight: 6,
-  },
-
-  statusDotInactive: {
-    backgroundColor: '#F7941D',
-  },
-
-  statusText: {
-    color: '#009366',
-    fontSize: 8,
+  countBadgeText: {
+    color: WHITE,
+    fontSize: 12,
     fontWeight: '900',
   },
 
-  organisationDetails: {
-    flexDirection: 'row',
-    gap: 20,
-    marginTop: 17,
-    paddingTop: 14,
-    paddingLeft: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#EEEEEE',
-  },
-
-  organisationDetailsTablet: {
-    flexWrap: 'wrap',
-  },
-
-  detailItem: {
-    flex: 1,
-    minWidth: 130,
-  },
-
-  detailLabel: {
-    color: '#888888',
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-
-  detailValue: {
-    color: '#222222',
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 4,
-  },
-
-  /* =========================================================
-     FOOTER
-  ========================================================= */
-
-  footer: {
-    backgroundColor: '#FFFFFF',
-    marginTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#DDDDDD',
-  },
-
-  footerFlag: {
-    height: 5,
-    flexDirection: 'row',
-  },
-
-  footerRed: {
-    flex: 1,
-    backgroundColor: '#F05D2A',
-  },
-
-  footerGreen: {
-    flex: 2,
-    backgroundColor: '#009366',
-  },
-
-  footerBlue: {
-    flex: 1,
-    backgroundColor: '#0053A1',
-  },
-
-  footerGold: {
-    flex: 1,
-    backgroundColor: '#F7941D',
-  },
-
-  footerContent: {
+  emptyState: {
+    paddingVertical: 45,
     alignItems: 'center',
-    paddingVertical: 28,
-    paddingHorizontal: 20,
+    justifyContent: 'center',
   },
 
-  footerTitle: {
-    color: '#F7941D',
-    fontSize: 17,
-    fontWeight: '500',
-    letterSpacing: 0.2,
-  },
-
-  footerDepartment: {
-    color: '#222222',
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 4,
-  },
-
-  footerRepublic: {
-    color: '#222222',
-    fontSize: 9,
+  emptyTitle: {
+    color: DARK,
+    fontSize: 14,
     fontWeight: '900',
-    marginTop: 3,
-  },
-
-  footerSystem: {
-    color: '#777777',
-    fontSize: 9,
-    marginTop: 8,
     textAlign: 'center',
   },
 
-  footerLine: {
-    width: 100,
-    height: 2,
-    backgroundColor: '#009366',
-    marginTop: 12,
+  emptyText: {
+    color: MUTED,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 8,
+    maxWidth: 500,
+    lineHeight: 18,
+  },
+
+  emptyRegisterButton: {
+    marginTop: 18,
+    backgroundColor: ORANGE,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 4,
+  },
+
+  emptyRegisterButtonText: {
+    color: WHITE,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+
+  organisationsList: {
+    width: '100%',
+  },
+
+  organisationCard: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: WHITE,
+    padding: 17,
+    marginBottom: 12,
+  },
+
+  organisationCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 15,
+  },
+
+  organisationNameContainer: {
+    flex: 1,
+  },
+
+  organisationName: {
+    color: DARK,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+
+  registrationText: {
+    color: MUTED,
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 5,
+  },
+
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 3,
+  },
+
+  statusActive: {
+    backgroundColor: '#E8F5EF',
+  },
+
+  statusInactive: {
+    backgroundColor: '#FDECEC',
+  },
+
+  statusText: {
+    fontSize: 9,
+    fontWeight: '900',
+  },
+
+  statusTextActive: {
+    color: GREEN,
+  },
+
+  statusTextInactive: {
+    color: RED,
+  },
+
+  organisationDetails: {
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    marginTop: 16,
+    paddingTop: 15,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+
+  detailColumn: {
+    width: '50%',
+    marginBottom: 12,
+    paddingRight: 10,
+  },
+
+  detailLabel: {
+    color: MUTED,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+
+  detailValue: {
+    color: DARK,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+
+  footer: {
+    backgroundColor: DARK,
+    marginTop: 30,
+  },
+
+  footerInner: {
+    width: '100%',
+    maxWidth: 1450,
+    alignSelf: 'center',
+    paddingHorizontal: 25,
+    paddingVertical: 30,
+  },
+
+  footerTitle: {
+    color: WHITE,
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  footerText: {
+    color: '#BDBDBD',
+    fontSize: 11,
+    marginTop: 5,
   },
 
   footerCopyright: {
-    color: '#999999',
-    fontSize: 8,
-    marginTop: 10,
+    color: '#888888',
+    fontSize: 10,
+    marginTop: 18,
   },
-
 });
-}
