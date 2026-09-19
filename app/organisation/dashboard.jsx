@@ -984,6 +984,16 @@ export default function OrganisationDashboardScreen() {
               </Text>
 
               <Text style={styles.breadcrumbCurrent}>
+                ORGANISATION
+              </Text>
+            </View>
+
+            {/* BREADCRUMB */}
+              <Text style={styles.breadcrumbSlash}>
+                /
+              </Text>
+
+              <Text style={styles.breadcrumbCurrent}>
                 ORGANISATION PORTAL
               </Text>
             </View>
@@ -1906,7 +1916,7 @@ export default function OrganisationDashboardScreen() {
                 </Text>
               </View>
             </View>
-          </View>
+      
 
           {/* ==================================================
               FOOTER
