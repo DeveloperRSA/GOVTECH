@@ -31,6 +31,9 @@ import { ROLES } from '../../src/constants/roles';
 export default function CasesScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
+  const handleCaseNumberChange = (value) => {
+  setCaseNumber(value.toUpperCase());
+};
 
   const { user } = useAuth();
 
@@ -816,7 +819,7 @@ setErrors({
             {/* PAGE HEADING */}
 
             <View style={styles.heading}>
-              <View
+              <Text
                 style={
                   styles.navActiveText
                 }
