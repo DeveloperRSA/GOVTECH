@@ -31,11 +31,12 @@ import { ROLES } from '../../src/constants/roles';
 export default function CasesScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 900;
-  const handleCaseNumberChange = (value) => {
-  setCaseNumber(value.toUpperCase());
-};
 
   const { user } = useAuth();
+
+  // --------------------------------------------------
+  // FORM STATE
+  // --------------------------------------------------
 
   const [showForm, setShowForm] = useState(false);
 
@@ -72,6 +73,10 @@ export default function CasesScreen() {
     fundingAgreement: '',
     description: '',
   });
+
+  // --------------------------------------------------
+  // STATISTICS
+  // --------------------------------------------------
 
   const [stats, setStats] = useState({
     DRAFT: 0,
@@ -111,6 +116,100 @@ export default function CasesScreen() {
     */
 
     return /^DSAC-CASE-\d{4}-\d{3,}$/.test(value);
+  };
+
+  // --------------------------------------------------
+  // INPUT HANDLERS
+  // --------------------------------------------------
+
+  const handleCaseNumberChange = (value) => {
+    const formatted = normaliseCaseNumber(value);
+
+    setCaseNumber(formatted);
+
+    clearError('caseNumber');
+  };
+
+  const handleDescriptionChange = (value) => {
+    setDescription(value);
+
+    clearError('description');
+  };
+
+  // --------------------------------------------------
+  // RESET FORM
+  // --------------------------------------------------
+
+  const resetForm = () => {
+    setCaseNumber('');
+    setDescription('');
+
+    setSelectedOrganisation(null);
+    setSelectedFundingAgreement(null);
+
+    setShowOrganisationList(false);
+    setShowFundingList(false);
+
+    setErrors({
+      caseNumber: '',
+      organisation: '',
+      fundingAgreement: '',
+      description: '',
+    });
+  };
+
+  // --------------------------------------------------
+  // ORGANISATION SELECTION
+  // --------------------------------------------------
+
+  const selectOrganisation = (organisation) => {
+    setSelectedOrganisation(organisation);
+
+    // Changing organisation invalidates the
+    // previous funding agreement.
+    setSelectedFundingAgreement(null);
+
+    setShowOrganisationList(false);
+    setShowFundingList(false);
+
+    clearError('organisation');
+    clearError('fundingAgreement');
+  };
+
+  // --------------------------------------------------
+  // FUNDING AGREEMENT SELECTION
+  // --------------------------------------------------
+
+  const selectFundingAgreement = (agreement) => {
+    if (!selectedOrganisation) {
+      setErrors((previous) => ({
+        ...previous,
+        fundingAgreement:
+          'Please select an organisation first.',
+      }));
+
+      return;
+    }
+
+    // Extra safety check.
+    if (
+      agreement.organisation_id !==
+      selectedOrganisation.id
+    ) {
+      setErrors((previous) => ({
+        ...previous,
+        fundingAgreement:
+          'This funding agreement does not belong to the selected organisation.',
+      }));
+
+      return;
+    }
+
+    setSelectedFundingAgreement(agreement);
+
+    setShowFundingList(false);
+
+    clearError('fundingAgreement');
   };
 
   // --------------------------------------------------
@@ -202,7 +301,8 @@ export default function CasesScreen() {
         agreementsResult.data || []
       );
 
-      const loadedCases = casesResult.data || [];
+      const loadedCases =
+        casesResult.data || [];
 
       setCases(loadedCases);
 
@@ -244,6 +344,10 @@ export default function CasesScreen() {
     }
   }, []);
 
+  // --------------------------------------------------
+  // LOAD WHEN SCREEN RECEIVES FOCUS
+  // --------------------------------------------------
+
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -264,136 +368,76 @@ export default function CasesScreen() {
     }
   };
 
-// --------------------------------------------------
-// INPUT HANDLERS
-// --------------------------------------------------
-const selectOrganisation = (organisation) => {
-  setSelectedOrganisation(organisation);
-
-  const handleCaseNumberChange = (value) => {
-    const formatted = normaliseCaseNumber(value);
-
-    setCaseNumber(formatted);
-
-    clearError('caseNumber');
-  };
-
-  const handleDescriptionChange = (value) => {
-    setDescription(value);
-
-    clearError('description');
-  };
-
   // --------------------------------------------------
-  // ORGANISATION SELECTION
+  // FORM VALIDATION
   // --------------------------------------------------
 
-  const selectOrganisation = (organisation) => {
-    setSelectedOrganisation(organisation);
+  const validateForm = async () => {
+    const newErrors = {
+      caseNumber: '',
+      organisation: '',
+      fundingAgreement: '',
+      description: '',
+    };
 
-    // Changing organisation invalidates the previous
-    // funding agreement.
-    setSelectedFundingAgreement(null);
+    let valid = true;
 
-    setShowOrganisationList(false);
-    setShowFundingList(false);
+    const cleanedCaseNumber =
+      normaliseCaseNumber(
+        caseNumber.trim()
+      );
 
-    clearError('organisation');
-    clearError('fundingAgreement');
-  };
+    const cleanedDescription =
+      description.trim();
 
-// --------------------------------------------------
-// FUNDING AGREEMENT SELECTION
-// --------------------------------------------------
+    // ----------------------------------------------
+    // CASE NUMBER
+    // ----------------------------------------------
 
-const selectFundingAgreement = (agreement) => {
-  if (!selectedOrganisation) {
-    setErrors((previous) => ({
-      ...previous,
-      fundingAgreement: 'Please select an organisation first.',
-    }));
+    if (!cleanedCaseNumber) {
+      newErrors.caseNumber =
+        'Case number is required.';
 
-    return;
-  }
-
-  // Extra safety check
-  if (agreement.organisation_id !== selectedOrganisation.id) {
-    setErrors((previous) => ({
-      ...previous,
-      fundingAgreement:
-        'This funding agreement does not belong to the selected organisation.',
-    }));
-
-    return;
-  }
-    setSelectedFundingAgreement(agreement);
-
-    setShowFundingList(false);
-
-    clearError('fundingAgreement');
-  };
-
-// --------------------------------------------------
-// FORM VALIDATION
-// --------------------------------------------------
-
-const validateForm = async () => {
-  const newErrors = {
-    caseNumber: '',
-    organisation: '',
-    fundingAgreement: '',
-    description: '',
-  };
-
-  let valid = true;
-
-  const cleanedCaseNumber = normaliseCaseNumber(caseNumber.trim());
-
-  const cleanedDescription = description.trim();
-
-  // ----------------------------------------------
-
-  if (!cleanedCaseNumber) {
-    newErrors.caseNumber = 'Case number is required.';
-    valid = false;
-  } else if (!validateCaseNumberFormat(cleanedCaseNumber)) {
-    newErrors.caseNumber = 'Use the format DSAC-CASE-2026-001.';
-    valid = false;
-  } else {
-    /*
-      Check for duplicate case number
-      in Supabase.
-    */
-
-    const { data, error } = await supabase
-      .from('accountability_cases')
-      .select('id')
-      .eq('case_number', cleanedCaseNumber)
-      .limit(1);
-
-    if (error) {
-      console.error('Duplicate case check error:', error);
-
-      newErrors.caseNumber = 'The case number could not be verified.';
       valid = false;
-    } else if (data && data.length > 0) {
-      newErrors.caseNumber = 'This case number already exists.';
+    } else if (
+      !validateCaseNumberFormat(
+        cleanedCaseNumber
+      )
+    ) {
+      newErrors.caseNumber =
+        'Use the format DSAC-CASE-2026-001.';
+
       valid = false;
-    }
-  }
+    } else {
+      // Check for duplicate case number.
+      const { data, error } = await supabase
+        .from('accountability_cases')
+        .select('id')
+        .eq(
+          'case_number',
+          cleanedCaseNumber
+        )
+        .limit(1);
 
-  // reset form helper kept below
+      if (error) {
+        console.error(
+          'Duplicate case check error:',
+          error
+        );
 
-  const resetForm = () => {
-    setCaseNumber('');
-    setDescription('');
+        newErrors.caseNumber =
+          'The case number could not be verified.';
 
-    setSelectedOrganisation(null);
-    setSelectedFundingAgreement(null);
+        valid = false;
+      } else if (
+        data &&
+        data.length > 0
+      ) {
+        newErrors.caseNumber =
+          'This case number already exists.';
 
-    setShowOrganisationList(false);
-    setShowFundingList(false);
-  };
+        valid = false;
+      }
     }
 
     // ----------------------------------------------
@@ -401,8 +445,10 @@ const validateForm = async () => {
     // ----------------------------------------------
 
     if (!selectedOrganisation) {
-newErrors.organisation = 'Please select an organisation.';
-valid = false;
+      newErrors.organisation =
+        'Please select an organisation.';
+
+      valid = false;
     }
 
     // ----------------------------------------------
@@ -410,30 +456,44 @@ valid = false;
     // ----------------------------------------------
 
     if (!selectedFundingAgreement) {
-newErrors.fundingAgreement = 'Please select a funding agreement.';
-valid = false;
-} else if (
-  selectedOrganisation &&
-  selectedFundingAgreement.organisation_id !== selectedOrganisation.id
-) {
-  newErrors.fundingAgreement =
-    'The selected funding agreement does not belong to the selected organisation.';
-  valid = false;
-}
+      newErrors.fundingAgreement =
+        'Please select a funding agreement.';
 
-// ----------------------------------------------
-// DESCRIPTION
-// ----------------------------------------------
+      valid = false;
+    } else if (
+      selectedOrganisation &&
+      selectedFundingAgreement.organisation_id !==
+        selectedOrganisation.id
+    ) {
+      newErrors.fundingAgreement =
+        'The selected funding agreement does not belong to the selected organisation.';
 
-if (!cleanedDescription) {
-  newErrors.description = 'Case description is required.';
-  valid = false;
-} else if (cleanedDescription.length < 20) {
-  newErrors.description = 'Case description must contain at least 20 characters.';
-  valid = false;
-} else if (cleanedDescription.length > 2000) {
-  newErrors.description = 'Case description cannot exceed 2000 characters.';
-  valid = false;
+      valid = false;
+    }
+
+    // ----------------------------------------------
+    // DESCRIPTION
+    // ----------------------------------------------
+
+    if (!cleanedDescription) {
+      newErrors.description =
+        'Case description is required.';
+
+      valid = false;
+    } else if (
+      cleanedDescription.length < 20
+    ) {
+      newErrors.description =
+        'Case description must contain at least 20 characters.';
+
+      valid = false;
+    } else if (
+      cleanedDescription.length > 2000
+    ) {
+      newErrors.description =
+        'Case description cannot exceed 2000 characters.';
+
+      valid = false;
     }
 
     setErrors(newErrors);
@@ -452,17 +512,16 @@ if (!cleanedDescription) {
         'Your account could not be identified. Please sign in again.'
       );
 
-return;
-}
+      return;
+    }
 
-const valid = await validateForm();
+    const valid = await validateForm();
 
-if (!valid) {
-  Alert.alert(
-    'Please Check Your Information',
-    'Some fields contain missing or invalid information. Please correct the highlighted fields.'
-  );
-
+    if (!valid) {
+      Alert.alert(
+        'Please Check Your Information',
+        'Some fields contain missing or invalid information. Please correct the highlighted fields.'
+      );
 
       return;
     }
@@ -485,7 +544,8 @@ if (!valid) {
       const cleanedDescription =
         description.trim();
 
-      // Final relationship check before database insert
+      // Final relationship check before
+      // database insert.
       if (
         selectedFundingAgreement.organisation_id !==
         selectedOrganisation.id
@@ -502,14 +562,14 @@ if (!valid) {
       const { error } = await supabase
         .from('accountability_cases')
         .insert({
-case_number:
-  cleanedCaseNumber,
+          case_number:
+            cleanedCaseNumber,
 
-title:
-  cleanedCaseNumber,
+          title:
+            cleanedCaseNumber,
 
-description:
-  cleanedDescription,
+          description:
+            cleanedDescription,
 
           organisation_id:
             selectedOrganisation.id,
@@ -535,21 +595,7 @@ description:
         `Case ${cleanedCaseNumber} has been created successfully.`
       );
 
-resetForm();
-
-setErrors({
-  caseNumber: '',
-  organisation: '',
-  fundingAgreement: '',
-  description: '',
-});
-
-      setErrors({
-        caseNumber: '',
-        organisation: '',
-        fundingAgreement: '',
-        description: '',
-      });
+      resetForm();
 
       setShowForm(false);
 
@@ -560,11 +606,7 @@ setErrors({
         error
       );
 
-      /*
-        Handle Supabase duplicate constraint
-        as an additional safety layer.
-      */
-
+      // Handle duplicate constraint.
       if (
         error?.code === '23505'
       ) {
@@ -599,21 +641,7 @@ setErrors({
       return;
     }
 
-    setCaseNumber('');
-    setDescription('');
-
-    setSelectedOrganisation(null);
-    setSelectedFundingAgreement(null);
-
-    setShowOrganisationList(false);
-    setShowFundingList(false);
-
-    setErrors({
-      caseNumber: '',
-      organisation: '',
-      fundingAgreement: '',
-      description: '',
-    });
+    resetForm();
 
     setShowForm(false);
   };
@@ -661,6 +689,7 @@ setErrors({
           }
         >
           {/* SOUTH AFRICAN FLAG STRIP */}
+
           <View style={styles.flagStrip}>
             <View
               style={[
@@ -705,59 +734,95 @@ setErrors({
             />
           </View>
 
-{/* HEADER */}
-
           {/* GOVERNMENT HEADER */}
+
           <View
             style={[
               styles.topHeader,
-              isDesktop && styles.topHeaderTablet,
+              isDesktop &&
+                styles.topHeaderTablet,
             ]}
           >
             <View style={styles.brandArea}>
               <View style={styles.coatContainer}>
-                <Text style={styles.coatPlaceholder}>SA</Text>
+                <Text style={styles.coatPlaceholder}>
+                  SA
+                </Text>
               </View>
 
               <View style={styles.brandText}>
-                <Text style={styles.brandTitle}>REPUBLIC OF SOUTH AFRICA</Text>
+                <Text style={styles.brandTitle}>
+                  REPUBLIC OF SOUTH AFRICA
+                </Text>
 
-                <Text style={styles.departmentText}>DEPARTMENT OF SPORT, ARTS AND CULTURE</Text>
+                <Text style={styles.departmentText}>
+                  DEPARTMENT OF SPORT, ARTS AND CULTURE
+                </Text>
 
-                <Text style={styles.republicText}>GOVERNMENT OF SOUTH AFRICA</Text>
+                <Text style={styles.republicText}>
+                  GOVERNMENT OF SOUTH AFRICA
+                </Text>
               </View>
             </View>
 
             <View style={styles.sloganArea}>
-              <Text style={styles.slogan}>Inspiring a Nation through Sport, Arts and Culture</Text>
+              <Text style={styles.slogan}>
+                Inspiring a Nation through Sport, Arts and Culture
+              </Text>
 
               <View style={styles.sloganLine} />
             </View>
 
             <View style={styles.userArea}>
-              <Text style={styles.userSmall}>SIGNED IN AS</Text>
+              <Text style={styles.userSmall}>
+                SIGNED IN AS
+              </Text>
 
-              <Text style={styles.userRole}>DSAC ADMIN</Text>
+              <Text style={styles.userRole}>
+                DSAC ADMIN
+              </Text>
 
-              <Text style={styles.userEmail} numberOfLines={1}>
+              <Text
+                style={styles.userEmail}
+                numberOfLines={1}
+              >
                 {user?.email || 'Administrator'}
               </Text>
 
               <Pressable
-                style={({ pressed }) => [styles.dashboardButton, pressed && styles.dashboardButtonPressed]}
-                onPress={() => router.replace('/dsac/dashboard')}
+                style={({ pressed }) => [
+                  styles.dashboardButton,
+                  pressed &&
+                    styles.dashboardButtonPressed,
+                ]}
+                onPress={() =>
+                  router.replace(
+                    '/dsac/dashboard'
+                  )
+                }
               >
-                <Text style={styles.dashboardButtonText}>DASHBOARD</Text>
+                <Text
+                  style={
+                    styles.dashboardButtonText
+                  }
+                >
+                  DASHBOARD
+                </Text>
               </Pressable>
             </View>
           </View>
 
           {/* CIVITRACK SYSTEM BAR */}
+
           <View style={styles.systemBar}>
             <View>
-              <Text style={styles.systemName}>CIVITRACK</Text>
+              <Text style={styles.systemName}>
+                CIVITRACK
+              </Text>
 
-              <Text style={styles.systemDescription}>DIGITAL GOVERNMENT ACCOUNTABILITY PLATFORM</Text>
+              <Text style={styles.systemDescription}>
+                DIGITAL GOVERNMENT ACCOUNTABILITY PLATFORM
+              </Text>
             </View>
 
             <View style={styles.systemRight}>
@@ -770,14 +835,19 @@ setErrors({
               <View style={styles.statusBox}>
                 <View style={styles.statusDot} />
 
-                <Text style={styles.statusLabel}>SYSTEM STATUS</Text>
+                <Text style={styles.statusLabel}>
+                  SYSTEM STATUS
+                </Text>
 
-                <Text style={styles.statusValue}>OPERATIONAL</Text>
+                <Text style={styles.statusValue}>
+                  OPERATIONAL
+                </Text>
               </View>
             </View>
           </View>
 
           {/* NAVIGATION */}
+
           <View style={styles.navigation}>
             <Pressable
               style={styles.navItem}
@@ -805,26 +875,22 @@ setErrors({
               </Text>
             </Pressable>
 
-<View style={[styles.navItem, styles.navActive]}>
-              <Text
-                style={styles.navActiveText}
-              >
-                {/* active nav label */}
-              </Text>
-              <Text style={styles.subtitle}>DSAC Accountability Cases</Text>
-            </View>
-          </View>
-
-          <View style={styles.main}>
-            {/* PAGE HEADING */}
-
-            <View style={styles.heading}>
+            <View
+              style={[
+                styles.navItem,
+                styles.navActive,
+              ]}
+            >
               <Text
                 style={
                   styles.navActiveText
                 }
               >
                 ACCOUNTABILITY
+              </Text>
+
+              <Text style={styles.subtitle}>
+                DSAC Accountability Cases
               </Text>
             </View>
 
@@ -843,6 +909,7 @@ setErrors({
           </View>
 
           {/* MAIN */}
+
           <View
             style={[
               styles.main,
@@ -851,6 +918,7 @@ setErrors({
             ]}
           >
             {/* BREADCRUMB */}
+
             <View style={styles.breadcrumb}>
               <Pressable
                 onPress={() =>
@@ -886,6 +954,7 @@ setErrors({
             </View>
 
             {/* PAGE HEADER */}
+
             <View
               style={[
                 styles.pageHeader,
@@ -942,6 +1011,7 @@ setErrors({
             </View>
 
             {/* CREATE CASE FORM */}
+
             {showForm && (
               <>
                 <View
@@ -1015,6 +1085,7 @@ setErrors({
                     ]}
                   >
                     {/* CASE NUMBER */}
+
                     <View
                       style={[
                         styles.fieldFull,
@@ -1031,22 +1102,45 @@ setErrors({
                       </Text>
 
                       <TextInput
-                        style={
-                          styles.input
-                        }
+                        style={[
+                          styles.input,
+                          errors.caseNumber &&
+                            styles.inputError,
+                        ]}
                         placeholder="e.g. DSAC-CASE-2026-001"
                         placeholderTextColor="#9CA3AF"
                         value={
                           caseNumber
                         }
                         onChangeText={
-                          setCaseNumber
+                          handleCaseNumberChange
                         }
                         autoCapitalize="characters"
+                        autoCorrect={false}
+                        maxLength={30}
                       />
+
+                      {errors.caseNumber ? (
+                        <Text
+                          style={
+                            styles.errorText
+                          }
+                        >
+                          {errors.caseNumber}
+                        </Text>
+                      ) : (
+                        <Text
+                          style={
+                            styles.helperText
+                          }
+                        >
+                          Format: DSAC-CASE-YYYY-001
+                        </Text>
+                      )}
                     </View>
 
                     {/* ORGANISATION */}
+
                     <View
                       style={[
                         styles.fieldFull,
@@ -1067,6 +1161,8 @@ setErrors({
                           styles.selectInput,
                           showOrganisationList &&
                             styles.selectInputActive,
+                          errors.organisation &&
+                            styles.inputError,
                         ]}
                         onPress={() =>
                           setShowOrganisationList(
@@ -1096,6 +1192,16 @@ setErrors({
                             : '▼'}
                         </Text>
                       </Pressable>
+
+                      {errors.organisation && (
+                        <Text
+                          style={
+                            styles.errorText
+                          }
+                        >
+                          {errors.organisation}
+                        </Text>
+                      )}
 
                       {showOrganisationList && (
                         <View
@@ -1162,6 +1268,7 @@ setErrors({
                     </View>
 
                     {/* FUNDING AGREEMENT */}
+
                     <View
                       style={[
                         styles.fieldFull,
@@ -1184,6 +1291,8 @@ setErrors({
                             styles.disabledInput,
                           showFundingList &&
                             styles.selectInputActive,
+                          errors.fundingAgreement &&
+                            styles.inputError,
                         ]}
                         disabled={
                           !selectedOrganisation
@@ -1221,6 +1330,18 @@ setErrors({
                             : ''}
                         </Text>
                       </Pressable>
+
+                      {errors.fundingAgreement && (
+                        <Text
+                          style={
+                            styles.errorText
+                          }
+                        >
+                          {
+                            errors.fundingAgreement
+                          }
+                        </Text>
+                      )}
 
                       {showFundingList &&
                         selectedOrganisation && (
@@ -1296,6 +1417,7 @@ setErrors({
                     </View>
 
                     {/* DESCRIPTION */}
+
                     <View
                       style={
                         styles.fieldFull
@@ -1313,6 +1435,8 @@ setErrors({
                         style={[
                           styles.input,
                           styles.textArea,
+                          errors.description &&
+                            styles.inputError,
                         ]}
                         placeholder="Describe the accountability requirements..."
                         placeholderTextColor="#9CA3AF"
@@ -1320,15 +1444,51 @@ setErrors({
                           description
                         }
                         onChangeText={
-                          setDescription
+                          handleDescriptionChange
                         }
                         multiline
                         textAlignVertical="top"
+                        maxLength={2000}
                       />
+
+                      <View
+                        style={
+                          styles.descriptionFooter
+                        }
+                      >
+                        {errors.description ? (
+                          <Text
+                            style={
+                              styles.errorText
+                            }
+                          >
+                            {
+                              errors.description
+                            }
+                          </Text>
+                        ) : (
+                          <Text
+                            style={
+                              styles.helperText
+                            }
+                          >
+                            Minimum 20 characters.
+                          </Text>
+                        )}
+
+                        <Text
+                          style={
+                            styles.characterCount
+                          }
+                        >
+                          {description.length}/2000
+                        </Text>
+                      </View>
                     </View>
                   </View>
 
                   {/* WORKFLOW NOTICE */}
+
                   <View
                     style={
                       styles.workflowNotice
@@ -1374,6 +1534,7 @@ setErrors({
                   </View>
 
                   {/* ACTIONS */}
+
                   <View
                     style={
                       styles.formActions
@@ -1385,10 +1546,9 @@ setErrors({
                         pressed &&
                           styles.cancelPressed,
                       ]}
-                      onPress={() => {
-                        resetForm();
-                        setShowForm(false);
-                      }}
+                      onPress={
+                        cancelForm
+                      }
                       disabled={saving}
                     >
                       <Text
@@ -1446,6 +1606,7 @@ setErrors({
             )}
 
             {/* INFORMATION CARD */}
+
             <View style={styles.infoCard}>
               <View style={styles.infoAccent} />
 
@@ -1483,91 +1644,193 @@ setErrors({
                   with DSAC funding agreements.
                 </Text>
 
-                {/* CASE NUMBER */}
+                {/* SECONDARY CASE NUMBER */}
 
-                <Text style={styles.label}>CASE NUMBER *</Text>
+                <Text style={styles.label}>
+                  CASE NUMBER *
+                </Text>
 
                 <TextInput
                   style={[
                     styles.input,
-                    errors.caseNumber && styles.inputError,
+                    errors.caseNumber &&
+                      styles.inputError,
                   ]}
                   placeholder="e.g. DSAC-CASE-2026-001"
                   placeholderTextColor="#888888"
                   value={caseNumber}
-                  onChangeText={handleCaseNumberChange}
+                  onChangeText={
+                    handleCaseNumberChange
+                  }
                   autoCapitalize="characters"
                   autoCorrect={false}
                   maxLength={30}
                 />
 
                 {errors.caseNumber ? (
-                  <Text style={styles.errorText}>{errors.caseNumber}</Text>
+                  <Text
+                    style={
+                      styles.errorText
+                    }
+                  >
+                    {errors.caseNumber}
+                  </Text>
                 ) : (
-                  <Text style={styles.helperText}>Format: DSAC-CASE-YYYY-001</Text>
+                  <Text
+                    style={
+                      styles.helperText
+                    }
+                  >
+                    Format: DSAC-CASE-YYYY-001
+                  </Text>
                 )}
 
-                {/* ORGANISATION */}
+                {/* SECONDARY ORGANISATION */}
 
-                <Text style={styles.label}>ORGANISATION *</Text>
+                <Text style={styles.label}>
+                  ORGANISATION *
+                </Text>
 
                 <Pressable
                   style={[
                     styles.selectInput,
-                    showOrganisationList && styles.selectInputActive,
-                    errors.organisation && styles.inputError,
+                    showOrganisationList &&
+                      styles.selectInputActive,
+                    errors.organisation &&
+                      styles.inputError,
                   ]}
-                  onPress={() => setShowOrganisationList(!showOrganisationList)}
+                  onPress={() =>
+                    setShowOrganisationList(
+                      !showOrganisationList
+                    )
+                  }
                 >
-                  <Text style={selectedOrganisation ? styles.selectText : styles.placeholderText}>
-                    {selectedOrganisation ? selectedOrganisation.name : 'Select organisation'}
+                  <Text
+                    style={
+                      selectedOrganisation
+                        ? styles.selectText
+                        : styles.placeholderText
+                    }
+                  >
+                    {selectedOrganisation
+                      ? selectedOrganisation.name
+                      : 'Select organisation'}
                   </Text>
 
-                  <Text style={styles.selectArrow}>{showOrganisationList ? '▲' : '▼'}</Text>
+                  <Text
+                    style={
+                      styles.selectArrow
+                    }
+                  >
+                    {showOrganisationList
+                      ? '▲'
+                      : '▼'}
+                  </Text>
                 </Pressable>
 
                 {errors.organisation && (
-                  <Text style={styles.errorText}>{errors.organisation}</Text>
+                  <Text
+                    style={
+                      styles.errorText
+                    }
+                  >
+                    {errors.organisation}
+                  </Text>
                 )}
 
                 {showOrganisationList && (
-                  <View style={styles.dropdown}>
-                    {organisations.length === 0 ? (
-                      <Text style={styles.dropdownEmpty}>No organisations available.</Text>
+                  <View
+                    style={
+                      styles.dropdown
+                    }
+                  >
+                    {organisations.length ===
+                    0 ? (
+                      <Text
+                        style={
+                          styles.dropdownEmpty
+                        }
+                      >
+                        No organisations available.
+                      </Text>
                     ) : (
-                      organisations.map((organisation) => (
-                        <Pressable
-                          key={organisation.id}
-                          style={styles.dropdownItem}
-                          onPress={() => selectOrganisation(organisation)}
-                        >
-                          <Text style={styles.dropdownItemTitle}>{organisation.name}</Text>
+                      organisations.map(
+                        (
+                          organisation
+                        ) => (
+                          <Pressable
+                            key={
+                              organisation.id
+                            }
+                            style={
+                              styles.dropdownItem
+                            }
+                            onPress={() =>
+                              selectOrganisation(
+                                organisation
+                              )
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.dropdownItemTitle
+                              }
+                            >
+                              {
+                                organisation.name
+                              }
+                            </Text>
 
-                          <Text style={styles.dropdownItemSubtitle}>
-                            {organisation.organisation_type}
+                            <Text
+                              style={
+                                styles.dropdownItemSubtitle
+                              }
+                            >
+                              {
+                                organisation.organisation_type
+                              }
 
-                            {organisation.registration_number ? ` • ${organisation.registration_number}` : ''}
-                          </Text>
-                        </Pressable>
-                      ))
+                              {organisation.registration_number
+                                ? ` • ${organisation.registration_number}`
+                                : ''}
+                            </Text>
+                          </Pressable>
+                        )
+                      )
                     )}
                   </View>
                 )}
 
-                {/* FUNDING AGREEMENT */}
+                {/* SECONDARY FUNDING AGREEMENT */}
 
-                <Text style={styles.label}>FUNDING AGREEMENT *</Text>
+                <Text style={styles.label}>
+                  FUNDING AGREEMENT *
+                </Text>
 
                 <Pressable
                   style={[
                     styles.selectInput,
-                    !selectedOrganisation && styles.disabledInput,
-                    errors.fundingAgreement && styles.inputError,
+                    !selectedOrganisation &&
+                      styles.disabledInput,
+                    errors.fundingAgreement &&
+                      styles.inputError,
                   ]}
-                  disabled={!selectedOrganisation}
-                  onPress={() => setShowFundingList(!showFundingList)}
+                  disabled={
+                    !selectedOrganisation
+                  }
+                  onPress={() =>
+                    setShowFundingList(
+                      !showFundingList
+                    )
+                  }
                 >
-                  <Text style={selectedFundingAgreement ? styles.selectText : styles.placeholderText}>
+                  <Text
+                    style={
+                      selectedFundingAgreement
+                        ? styles.selectText
+                        : styles.placeholderText
+                    }
+                  >
                     {selectedFundingAgreement
                       ? `${selectedFundingAgreement.agreement_number} — ${selectedFundingAgreement.title || 'Funding Agreement'}`
                       : selectedOrganisation
@@ -1575,86 +1838,208 @@ setErrors({
                       : 'Select an organisation first'}
                   </Text>
 
-                  <Text style={styles.selectArrow}>
-                    {selectedOrganisation ? (showFundingList ? '▲' : '▼') : ''}
+                  <Text
+                    style={
+                      styles.selectArrow
+                    }
+                  >
+                    {selectedOrganisation
+                      ? showFundingList
+                        ? '▲'
+                        : '▼'
+                      : ''}
                   </Text>
                 </Pressable>
 
                 {errors.fundingAgreement && (
-                  <Text style={styles.errorText}>{errors.fundingAgreement}</Text>
+                  <Text
+                    style={
+                      styles.errorText
+                    }
+                  >
+                    {
+                      errors.fundingAgreement
+                    }
+                  </Text>
                 )}
 
-                {showFundingList && selectedOrganisation && (
-                  <View style={styles.dropdown}>
-                    {filteredFundingAgreements.length === 0 ? (
-                      <Text style={styles.dropdownEmpty}>No funding agreements found for this organisation.</Text>
-                    ) : (
-                      filteredFundingAgreements.map((agreement) => (
-                        <Pressable
-                          key={agreement.id}
-                          style={styles.dropdownItem}
-                          onPress={() => selectFundingAgreement(agreement)}
+                {showFundingList &&
+                  selectedOrganisation && (
+                    <View
+                      style={
+                        styles.dropdown
+                      }
+                    >
+                      {filteredFundingAgreements.length ===
+                      0 ? (
+                        <Text
+                          style={
+                            styles.dropdownEmpty
+                          }
                         >
-                          <Text style={styles.dropdownItemTitle}>{agreement.agreement_number}</Text>
+                          No funding agreements found
+                          for this organisation.
+                        </Text>
+                      ) : (
+                        filteredFundingAgreements.map(
+                          (
+                            agreement
+                          ) => (
+                            <Pressable
+                              key={
+                                agreement.id
+                              }
+                              style={
+                                styles.dropdownItem
+                              }
+                              onPress={() =>
+                                selectFundingAgreement(
+                                  agreement
+                                )
+                              }
+                            >
+                              <Text
+                                style={
+                                  styles.dropdownItemTitle
+                                }
+                              >
+                                {
+                                  agreement.agreement_number
+                                }
+                              </Text>
 
-                          <Text style={styles.dropdownItemSubtitle}>
-                            {agreement.title || 'Funding Agreement'}
+                              <Text
+                                style={
+                                  styles.dropdownItemSubtitle
+                                }
+                              >
+                                {agreement.title ||
+                                  'Funding Agreement'}
 
-                            {agreement.allocated_amount !== null
-                              ? ` • ${agreement.currency || 'ZAR'} ${Number(agreement.allocated_amount).toLocaleString('en-ZA')}`
-                              : ''}
-                          </Text>
-                        </Pressable>
-                      ))
-                    )}
-                  </View>
-                )}
+                                {agreement.allocated_amount !==
+                                null
+                                  ? ` • ${
+                                      agreement.currency ||
+                                      'ZAR'
+                                    } ${Number(
+                                      agreement.allocated_amount
+                                    ).toLocaleString(
+                                      'en-ZA'
+                                    )}`
+                                  : ''}
+                              </Text>
+                            </Pressable>
+                          )
+                        )
+                      )}
+                    </View>
+                  )}
 
-                {/* DESCRIPTION */}
+                {/* SECONDARY DESCRIPTION */}
 
-                <Text style={styles.label}>CASE DESCRIPTION *</Text>
+                <Text style={styles.label}>
+                  CASE DESCRIPTION *
+                </Text>
 
                 <TextInput
-                  style={[styles.input, styles.textArea, errors.description && styles.inputError]}
+                  style={[
+                    styles.input,
+                    styles.textArea,
+                    errors.description &&
+                      styles.inputError,
+                  ]}
                   placeholder="Describe the accountability requirements..."
                   placeholderTextColor="#888888"
                   value={description}
-                  onChangeText={handleDescriptionChange}
+                  onChangeText={
+                    handleDescriptionChange
+                  }
                   multiline
                   textAlignVertical="top"
                   maxLength={2000}
                 />
 
-                <View style={styles.descriptionFooter}>
+                <View
+                  style={
+                    styles.descriptionFooter
+                  }
+                >
                   {errors.description ? (
-                    <Text style={styles.errorText}>{errors.description}</Text>
+                    <Text
+                      style={
+                        styles.errorText
+                      }
+                    >
+                      {errors.description}
+                    </Text>
                   ) : (
-                    <Text style={styles.helperText}>Minimum 20 characters.</Text>
+                    <Text
+                      style={
+                        styles.helperText
+                      }
+                    >
+                      Minimum 20 characters.
+                    </Text>
                   )}
 
-                  <Text style={styles.characterCount}>{description.length}/2000</Text>
+                  <Text
+                    style={
+                      styles.characterCount
+                    }
+                  >
+                    {description.length}/2000
+                  </Text>
                 </View>
 
                 {/* ACTION BUTTONS */}
 
                 <View style={styles.actions}>
-                  <Pressable style={styles.cancel} onPress={cancelForm} disabled={saving}>
-                    <Text style={styles.cancelText}>CANCEL</Text>
+                  <Pressable
+                    style={styles.cancel}
+                    onPress={cancelForm}
+                    disabled={saving}
+                  >
+                    <Text
+                      style={
+                        styles.cancelText
+                      }
+                    >
+                      CANCEL
+                    </Text>
                   </Pressable>
 
-                  <Pressable style={[styles.save, saving && styles.saveDisabled]} onPress={createCase} disabled={saving}>
+                  <Pressable
+                    style={[
+                      styles.save,
+                      saving &&
+                        styles.saveDisabled,
+                    ]}
+                    onPress={
+                      createCase
+                    }
+                    disabled={saving}
+                  >
                     {saving ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <ActivityIndicator
+                        size="small"
+                        color="#FFFFFF"
+                      />
                     ) : (
-                      <Text style={styles.saveText}>CREATE CASE</Text>
+                      <Text
+                        style={
+                          styles.saveText
+                        }
+                      >
+                        CREATE CASE
+                      </Text>
                     )}
                   </Pressable>
                 </View>
-
               </View>
             </View>
 
             {/* STATISTICS */}
+
             <View
               style={
                 styles.sectionHeader
@@ -1765,6 +2150,7 @@ setErrors({
                 </View>
 
                 {/* CASE LIST */}
+
                 <View
                   style={
                     styles.sectionHeader
@@ -1922,6 +2308,7 @@ setErrors({
           </View>
 
           {/* FOOTER */}
+
           <View style={styles.footer}>
             <View
               style={
@@ -2598,6 +2985,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E2E2E2',
     flexDirection: 'row',
     paddingHorizontal: 20,
+    flexWrap: 'wrap',
   },
 
   navItem: {
@@ -2623,6 +3011,12 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0.3,
+  },
+
+  subtitle: {
+    color: '#999999',
+    fontSize: 7,
+    marginTop: 3,
   },
 
   /* MAIN */
@@ -2801,6 +3195,7 @@ const styles = StyleSheet.create({
     fontSize: 8,
     fontWeight: '900',
     marginBottom: 6,
+    marginTop: 12,
     letterSpacing: 0.4,
   },
 
@@ -2822,9 +3217,10 @@ const styles = StyleSheet.create({
 
   errorText: {
     color: '#C62828',
-    fontSize: 11,
+    fontSize: 10,
     marginTop: 5,
     fontWeight: '600',
+    flex: 1,
   },
 
   helperText: {
@@ -2837,6 +3233,7 @@ const styles = StyleSheet.create({
     color: '#888888',
     fontSize: 10,
     marginTop: 5,
+    marginLeft: 10,
   },
 
   textArea: {
@@ -2921,28 +3318,11 @@ const styles = StyleSheet.create({
 
   /* WORKFLOW */
 
-  descriptionFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
-    marginTop: 25,
-  },
-
-  cancel: {
-    borderWidth: 1,
-    borderColor: '#E4E4E4',
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: '#E4E4E4',
-    flexDirection: 'row',
+  workflowNotice: {
+    backgroundColor: '#F8F8F5',
     padding: 13,
-    marginTop: 2,
+    marginTop: 8,
+    flexDirection: 'row',
   },
 
   workflowNoticeAccent: {
@@ -3081,6 +3461,41 @@ const styles = StyleSheet.create({
     fontSize: 8,
     lineHeight: 14,
     marginTop: 5,
+    marginBottom: 8,
+  },
+
+  /* DESCRIPTION FOOTER */
+
+  descriptionFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+
+  /* ACTIONS */
+
+  actions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    marginTop: 25,
+  },
+
+  cancel: {
+    borderWidth: 1,
+    borderColor: '#E4E4E4',
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+    marginRight: 10,
+  },
+
+  save: {
+    backgroundColor: '#D97706',
+    paddingHorizontal: 17,
+    paddingVertical: 12,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   /* LOADING */
